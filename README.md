@@ -29,15 +29,13 @@ EXPLAIN AGENT TASK
 
 ## Companion code for *Database Kernels for AI*
 
-This code accompanies a two-part systems series. The articles make the argument; this repository lets you
-watch it happen against live models.
+This is the reference implementation for **[Your AI Agent Needs a Transaction Manager](https://anuganti.com/articles/ai-agent-needs-transaction-manager/)**,
+part of the *Database Kernels for AI* series at **[anuganti.com/articles](https://anuganti.com/articles)**.
+The article makes the argument; this repository lets you watch it happen against live models. The article
+links to the rest of the series.
 
-- **[Part 1: LLM Inference Is Just an In-Memory Database](https://anuganti.com/articles/llm-inference-is-inmemory-db/)**
-  maps modern AI serving to database kernels. The matching examples are 01, 05, 06 and 07: EXPLAIN INFERENCE,
-  plans, estimates versus actuals, and cache reuse.
-- **[Part 2: Your AI Agent Needs a Transaction Manager](https://anuganti.com/articles/ai-agent-needs-transaction-manager/)**
-  asks what agentic AI can learn from 40 years of database systems. The matching examples are 02, 03 and 04:
-  memory, agent tasks, and the ambiguous-commit recovery demo.
+Examples 02, 03 and 04 are the demos for the article (memory, agent tasks, and the ambiguous-commit recovery
+demo). Examples 01 and 05 to 07 show the inference observability those tasks sit on.
 
 ## Quickstart
 
@@ -547,6 +545,7 @@ stored. A test writes a fake key through every persistence path and scans the ra
 - Provider token accounting differs; see the comparison note.
 - Cache results (example 07) are single-run observations; providers cache on a best-effort basis and report it differently.
 - The plan (example 06) is a simple, explicit rule over observed inputs, not a cost-based optimizer; its cost figures are upper bounds.
+- Distributed state is not implemented: no replication, sync, conflict resolution, placement or distributed forgetting.
 - The payment service is local and demonstrates external side-effect semantics. It does not process real money.
 - `SIDE_EFFECT_COMMITTED` is reported out-of-band by the payment service's observer after its own commit.
   The runtime never uses it for decisions; its state follows only what its acknowledgement says.
