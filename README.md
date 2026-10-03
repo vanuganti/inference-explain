@@ -22,6 +22,18 @@ EXPLAIN AGENT TASK
     transactions, retries, checkpoints, authority, cost and time?
 ```
 
+## Database Kernels for AI
+
+This project accompanies a two-part systems series:
+
+Part 1 — LLM Inference Is Just an In-Memory Database
+Mapping modern AI serving to database kernels.
+https://anuganti.com/articles/llm-inference-is-inmemory-db/
+
+Part 2 — Your AI Agent Needs a Transaction Manager
+What agentic AI can learn from 40 years of database systems.
+https://anuganti.com/articles/llm-inference-is-inmemory-db/
+
 ## Quickstart
 
 ```bash
