@@ -1,0 +1,17 @@
+"""The closed vocabulary of journal events. emit() rejects anything not listed here."""
+
+EVENT_TYPES = frozenset({
+    # task lifecycle
+    "TASK_START", "TASK_RESUME", "TASK_END", "RECOVERY_START", "RECOVERY_END",
+    # inference
+    "INFERENCE_START", "INFERENCE_END", "INFERENCE_ERROR", "BUDGET_EXCEEDED",
+    # steps, tools, state, memory, policy
+    "TOOL_START", "TOOL_END", "STEP_RECOVERED", "STATE_WRITE", "CHECKPOINT",
+    "MEMORY_LOOKUP", "POLICY_CHECK",
+    # transactions and ambiguous side effects
+    "TRANSACTION_START", "DURABLE_INTENT", "SIDE_EFFECT_COMMITTED",
+    "ACKNOWLEDGEMENT_LOST", "TRANSACTION_COMMIT_UNKNOWN",
+    "RETRY_REQUESTED", "RETRY_BLOCKED", "IDEMPOTENCY_CHECK",
+    "RECONCILIATION_START", "RECONCILIATION_RESULT",
+    "TRANSACTION_COMMIT", "COMPENSATION_REGISTERED", "TRANSACTION_COMPENSATE",
+})
