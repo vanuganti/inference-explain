@@ -1,5 +1,10 @@
 # EXPLAIN for AI Agents
 
+> **Proof of concept, for demonstration only.** This repository is a demo built to illustrate the ideas in
+> the articles below. It is **not** a real or production implementation: the payment service is a local
+> stand-in that moves no money, the transaction manager is a teaching sketch, and nothing here should be
+> used to run real workloads. See [Limitations](#limitations).
+
 Databases gave us `EXPLAIN` and `EXPLAIN ANALYZE`.
 
 LLM runtimes need **EXPLAIN INFERENCE**.
@@ -22,17 +27,17 @@ EXPLAIN AGENT TASK
     transactions, retries, checkpoints, authority, cost and time?
 ```
 
-## Database Kernels for AI
+## Companion code for *Database Kernels for AI*
 
-This project accompanies a two-part systems series:
+This code accompanies a two-part systems series. The articles make the argument; this repository lets you
+watch it happen against live models.
 
-Part 1 — LLM Inference Is Just an In-Memory Database
-Mapping modern AI serving to database kernels.
-https://anuganti.com/articles/llm-inference-is-inmemory-db/
-
-Part 2 — Your AI Agent Needs a Transaction Manager
-What agentic AI can learn from 40 years of database systems.
-https://anuganti.com/articles/llm-inference-is-inmemory-db/
+- **[Part 1: LLM Inference Is Just an In-Memory Database](https://anuganti.com/articles/llm-inference-is-inmemory-db/)**
+  maps modern AI serving to database kernels. The matching examples are 01, 05, 06 and 07: EXPLAIN INFERENCE,
+  plans, estimates versus actuals, and cache reuse.
+- **[Part 2: Your AI Agent Needs a Transaction Manager](https://anuganti.com/articles/ai-agent-needs-transaction-manager/)**
+  asks what agentic AI can learn from 40 years of database systems. The matching examples are 02, 03 and 04:
+  memory, agent tasks, and the ambiguous-commit recovery demo.
 
 ## Quickstart
 
@@ -42,6 +47,14 @@ pip install -r requirements.txt
 cp .env.example .env          # fill in keys and models; .env is git-ignored
 EXPLAIN_PROVIDER=openai python examples/01_inference.py
 python examples/04_transaction_recovery.py
+```
+
+**No API keys?** Replay a recorded run. The files in `samples/` are real journals captured from live runs;
+the views are rendered from their events, with no keys and no network:
+
+```bash
+python -m explain replay samples/04_transaction_recovery.json    # the hero demo below
+python -m explain replay samples/03_agent_task.json
 ```
 
 Configuration comes from `.env` **or** ordinary shell variables (the shell wins). Keys are only
@@ -144,7 +157,9 @@ payment records for this task: 1
 Compensation    not required   (payment was found COMMITTED)
 ```
 
-Then the projection of the journal. Every field below is read back from recorded events:
+Then the projection of the journal. Every field below is read back from recorded events, and the counters
+agree with the trace: the retry was requested and **blocked** (none executed), and one recovery ran.
+You can regenerate it without keys: `python -m explain replay samples/04_transaction_recovery.json`.
 
 ```
 ┌─ EXPLAIN AGENT TASK · task-7422 ─────────────────────────────────────────────────────────────────────────────────────┐
@@ -182,14 +197,13 @@ Then the projection of the journal. Every field below is read back from recorded
 │ Journal events    24                                                                                                 │
 │ State writes      0                                                                                                  │
 │ Checkpoints       1                                                                                                  │
-│ Recovered steps   0                                                                                                  │
-│ Retries / errors  0 / 0                                                                                              │
+│ Retries           0 executed · 1 blocked                                                                             │
+│ Recoveries        1 (reconciliations: 1)                                                                             │
+│ Steps restored    0 from the step ledger (no re-execution)                                                           │
+│ Inference errors  0                                                                                                  │
 │                                                                                                                      │
-│ GPU Placement     UNAVAILABLE (hosted provider)                                                                      │
-│ KV Occupancy      UNAVAILABLE (hosted provider)                                                                      │
-│ Graph Breaks      UNAVAILABLE (hosted provider)                                                                      │
-│ Kernel Fusion     UNAVAILABLE (hosted provider)                                                                      │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+│ Physical internalsUNAVAILABLE  (hosted provider)                                                                     │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ 
 ```
 
 ```
@@ -270,23 +284,34 @@ EXPLAIN_PROVIDER=gemini python examples/01_inference.py     # or openai, anthrop
 ```
 
 ```
+┌─ EXPLAIN INFERENCE ────────────────────────────────────────────────┐
+│ Provider            Gemini                                         │
+│ Model               gemini-3.8-flash                               │
+│ Request             wXvAaqP-Jvy639IP19iJ0Q8  OBSERVED              │
+│ Router Decision     configured provider/model                      │
+│ Finish              STOP                                           │
+│                                                                    │
+│ Physical internals  UNAVAILABLE  (hosted provider)                 │
+└────────────────────────────────────────────────────────────────────┘ 
+
 ┌─ EXPLAIN ANALYZE ──────────────────────────────────────────────────┐
 │ Input Tokens      74  OBSERVED                                     │
-│ Output Tokens     162  OBSERVED                                    │
+│ Output Tokens     197  OBSERVED                                    │
 │ Cached Tokens     UNAVAILABLE                                      │
-│ Reasoning Tokens  572  OBSERVED                                    │
+│ Reasoning Tokens  642  OBSERVED                                    │
 │ Tool Tokens       UNAVAILABLE                                      │
-│ Total Tokens      808  OBSERVED                                    │
-│ TTFT              2.54s  OBSERVED                                  │
-│ Total Latency     2.87s  OBSERVED                                  │
+│ Total Tokens      913  OBSERVED                                    │
+│ TTFT              2.61s  OBSERVED                                  │
+│ Total Latency     3.06s  OBSERVED                                  │
 │ Retries           0                                                │
-│ Estimated Cost    $0.002808  DERIVED                               │
+│ Estimated Cost    $0.003202  DERIVED                               │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
 Every value is tagged by how it is known: `OBSERVED` (reported by the provider or measured by the client),
-`DERIVED` (calculated from observed values) or `ESTIMATED`. GPU placement, KV occupancy, graph breaks and
-kernel fusion stay `UNAVAILABLE` for hosted providers; they are never invented.
+`DERIVED` (calculated from observed values) or `ESTIMATED`. Hosted APIs do not expose GPU placement, KV
+occupancy, graph breaks or kernel fusion, so they collapse to one `Physical internals UNAVAILABLE` line; they
+are never invented, and they expand into individual rows for any adapter that really exposes them.
 
 ### 2. EXPLAIN MEMORY: `examples/02_memory.py`
 
@@ -370,6 +395,120 @@ differently, so token counts are not equivalent units of work. Output: Gemini ex
 OpenAI includes them, Anthropic includes them and reports no separate reasoning count (so it shows
 `UNAVAILABLE`). Input includes cached tokens for all three.
 
+### 6. The plan, then the actuals: `examples/06_explain_plan.py`
+
+Hosted APIs hide physical placement, but the decisions the *runtime* makes are real: answer from memory instead
+of inferring, which configured model to call, and what that should cost. The plan is a real decision over
+observed inputs (memory coverage, each provider's own pre-flight token count, your price table), journaled as a
+`PLAN_CHOSEN` event; the view is rendered from that event, then compared with what actually happened.
+
+```bash
+python examples/06_explain_plan.py
+```
+
+```
+── Question 1 ──
+┌─ EXPLAIN INFERENCE · plan ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Question        What is the preferred vendor for cloud licences?                                                                                             │
+│ Router Decision answer from memory (no inference)                                                                                                            │
+│ Rule            memory if its top item covers ≥75% of the question's words, else the cheapest worst-case model                                               │
+├─ CANDIDATES  (chosen first; est. cost = worst case, at the output cap) ──────────────────────────────────────────────────────────────────────────────────────┤
+│     PLAN                                     EST IN  EST OUT ≤   EST COST ≤  WHY                                                                             │
+│ ▶  answer from memory (no inference)             0          0    $0.000000  memory item #1 covers 100% of the question (>= 75%)                              │
+│ ✗  openai/gpt-5.2                               37      2,000    $0.028065  not needed: answered from memory                                                 │
+│ ✗  gemini/gemini-flash-latest                   29      2,000    $0.007522  not needed: answered from memory                                                 │
+│ ✗  anthropic/claude-sonnet-5                    53      2,000    $0.020106  not needed: answered from memory                                                 │
+├─ PROVENANCE ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ EST IN is OBSERVED (provider pre-flight count). EST OUT is the ESTIMATED upper bound (the output cap). EST COST is ESTIMATED, derived from your price table. │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ 
+
+┌─ EXPLAIN ANALYZE · plan vs actual ─────────────────────────────────────────────────┐
+│ Executed              memory lookup (no model call)                                │
+│ Inference calls       0                                                            │
+│ Tokens                0 in / 0 out                                                 │
+│ Estimated Cost        $0.000000  (nothing to bill)                                 │
+│ Lookup latency        2.06 ms  OBSERVED                                            │
+└────────────────────────────────────────────────────────────────────────────────────┘ 
+
+answer: Preferred vendor for cloud licences is Acme Cloud; renewals go through procurement.
+
+── Question 2 ──
+┌─ EXPLAIN INFERENCE · plan ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Question        Draft a polite two-sentence email asking Acme Cloud for a ten percent volume discount on three seats.                                        │
+│ Router Decision gemini/gemini-flash-latest                                                                                                                   │
+│ Rule            memory if its top item covers ≥75% of the question's words, else the cheapest worst-case model                                               │
+├─ CANDIDATES  (chosen first; est. cost = worst case, at the output cap) ──────────────────────────────────────────────────────────────────────────────────────┤
+│     PLAN                                     EST IN  EST OUT ≤   EST COST ≤  WHY                                                                             │
+│ ▶  gemini/gemini-flash-latest                   40      2,000    $0.007530  lowest worst-case estimated cost among priced candidates                         │
+│ ✗  answer from memory (no inference)             0          0    $0.000000  top item covers only 0% (< 75%)                                                  │
+│ ✗  openai/gpt-5.2                               49      2,000    $0.028086  rejected: worst-case $0.0281 vs $0.0075 chosen                                   │
+│ ✗  anthropic/claude-sonnet-5                    73      2,000    $0.020146  rejected: worst-case $0.0201 vs $0.0075 chosen                                   │
+├─ PROVENANCE ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ EST IN is OBSERVED (provider pre-flight count). EST OUT is the ESTIMATED upper bound (the output cap). EST COST is ESTIMATED, derived from your price table. │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ 
+
+┌─ EXPLAIN ANALYZE · plan vs actual ─────────────────────────────────────────────────┐
+│ Executed              gemini/gemini-3.8-flash                                      │
+│ Input tokens          est 40 → actual 40   Δ +0                                    │
+│ Output tokens         ≤ 2,000 → actual 43  (reasoning 417, reported separately)    │
+│ Estimated Cost        ≤ $0.007530 → actual $0.001755  (23.3% of the bound)         │
+│ TTFT                  1.96s                                                        │
+│ Total latency         2.06s                                                        │
+└────────────────────────────────────────────────────────────────────────────────────┘ 
+
+answer: We are excited to move forward with purchasing three seats for our team and are eager to finalize
+        our agreement with Acme Cloud. Given our commitment, would you be open to extending a ten
+        percent volume discount on these licenses?
+
+```
+
+The first question is answered from memory, so no model is called. The second picks the candidate with the
+lowest *worst-case* estimated cost and shows each rejected alternative with the numbers that rejected it. The
+estimate is an upper bound, not a prediction: Gemini's reasoning tokens are reported separately from its output.
+
+### 7. Prompt layout and cache reuse: `examples/07_prompt_layout_cache.py`
+
+Providers only reuse a cached prefix when the prompt is large enough **and** its start is byte-identical between
+calls. This sends the same ~5-7k token handbook two ways, twice each: stable text first (only the question
+varies) versus a per-request header first. Each run's prefix is unique, so call 1 is genuinely cold.
+
+```bash
+python examples/07_prompt_layout_cache.py
+```
+
+```
+┌─ EXPLAIN CACHE REUSE · what each provider reported for the SAME shared prompt ──────────────────────────────────────────────┐
+│   PROVIDER   LAYOUT          CALL    INPUT       CACHED   CACHE WRITE     CACHED %        TTFT        COST                  │
+│   OpenAI     stable-first    1       4,919            0   UNAVAILABLE           0%       3.53s   $0.011520                  │
+│   OpenAI     stable-first    2       4,919        4,736   UNAVAILABLE          96%       3.20s   $0.004229                  │
+│   OpenAI     volatile-first  1       4,932            0   UNAVAILABLE           0%       3.67s   $0.012061                  │
+│   OpenAI     volatile-first  2       4,932            0   UNAVAILABLE           0%       1.97s   $0.010913                  │
+├─ Gemini ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│   Gemini     stable-first    1       5,670  UNAVAILABLE   UNAVAILABLE  UNAVAILABLE       8.22s   $0.011647                  │
+│   Gemini     stable-first    2       5,668  UNAVAILABLE   UNAVAILABLE  UNAVAILABLE       3.87s   $0.008320                  │
+│   Gemini     volatile-first  1       5,691  UNAVAILABLE   UNAVAILABLE  UNAVAILABLE       7.70s   $0.011577                  │
+│   Gemini     volatile-first  2       5,689  UNAVAILABLE   UNAVAILABLE  UNAVAILABLE       3.06s   $0.007462                  │
+├─ Anthropic ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│   Anthropic  stable-first    1       7,431            0         7,410           0%       3.73s   $0.018162                  │
+│   Anthropic  stable-first    2       7,429        7,410             0         100%       1.62s   $0.003390                  │
+│   Anthropic  volatile-first  1       7,445            0         7,424           0%       2.16s   $0.016840                  │
+│   Anthropic  volatile-first  2       7,443            0         7,424           0%       1.59s   $0.017036                  │
+├─ HOW TO READ THIS ──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Call 1 is cold (the prefix is unique to this run), call 2 repeats it. CACHED is the provider-reported count of input tokens │
+│ served from cache; UNAVAILABLE means the provider reported no figure. Gemini omits the field when it                        │
+│ reports no cache use, so UNAVAILABLE there means no hit was reported, not a measured zero.                                  │
+│ Only the placement of the volatile text differs between layouts. Cost is estimated from your price table.                   │
+│ TTFT is time to the first visible text token. Caching is best-effort and provider-specific:                                 │
+│ this is an observation, not a guarantee or a ranking.                                                                       │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+In this run, with the stable-first layout OpenAI reported 96% of the input as cached on the warm repeat, and
+Anthropic read back everything it had written on call 1. With the volatile header first, neither reported any reuse.
+Gemini reported no cached-token figure in either layout (the field is absent when no cache use is reported, so
+that is not a measured zero). The same prompt is 4.9k, 5.7k and 7.4k tokens depending on the provider's
+tokenizer. Caching is best-effort and provider-specific; this is one run's observation, not a guarantee.
+
 ## Inspecting a task
 
 ```bash
@@ -377,6 +516,8 @@ python -m explain list
 python -m explain explain <task-id>     # EXPLAIN AGENT TASK
 python -m explain trace   <task-id>     # trajectory
 python -m explain events  <task-id>     # event journal as a table (add --json for developers)
+python -m explain export  <task-id> --out samples/mine.json   # record a run (secrets already redacted)
+python -m explain replay  samples/mine.json                   # render it again: no keys, no network
 ```
 
 ## Cost
@@ -397,13 +538,15 @@ stored. A test writes a fake key through every persistence path and scans the ra
 
 ## Limitations
 
-- This is a **reference implementation**, not a production transaction manager.
+- This is a **proof of concept for demonstration**, not a real or production implementation, and not a production transaction manager.
 - Arbitrary external tools do **not** participate in ACID transactions.
 - **Compensation is not rollback**: it is a new, recorded action that reverses an effect. Handlers must be idempotent.
 - Hosted model APIs do not expose all physical inference internals. GPU placement, KV occupancy, graph breaks
   and kernel fusion therefore remain `UNAVAILABLE` where the provider does not expose them.
 - Cost is calculated from a local pricing table; treat it as estimated, not provider-billed.
 - Provider token accounting differs; see the comparison note.
+- Cache results (example 07) are single-run observations; providers cache on a best-effort basis and report it differently.
+- The plan (example 06) is a simple, explicit rule over observed inputs, not a cost-based optimizer; its cost figures are upper bounds.
 - The payment service is local and demonstrates external side-effect semantics. It does not process real money.
 - `SIDE_EFFECT_COMMITTED` is reported out-of-band by the payment service's observer after its own commit.
   The runtime never uses it for decisions; its state follows only what its acknowledgement says.
@@ -418,13 +561,17 @@ explain/
   journal.py        append-only events + durable tables (SQLite)
   agent.py          provider-independent runtime: durable steps, tools, memory lookups, policy
   transaction.py    durable intent, COMMIT_UNKNOWN, retry block, reconciliation, compensation
+  plan.py           inference plan: chosen path + rejected alternatives (journaled as PLAN_CHOSEN)
   payments.py       local external payment service (separate SQLite, UNIQUE idempotency key)
   memory.py         agent memory (FTS5), separate from the journal
   explain_task.py   EXPLAIN AGENT TASK projection      trace.py   trajectory projection
   render.py         EXPLAIN INFERENCE / ANALYZE / MEMORY / COMPARE    cli.py   explain|trace|events
 examples/  01_inference  02_memory  03_agent_task  04_transaction_recovery  05_compare_providers
+           06_explain_plan  07_prompt_layout_cache
+samples/   recorded real journals for keyless replay
 tests/     behavior tests (no keys needed): idempotency, commit-unknown, reconciliation,
-           checkpoint recovery, compensation, journal projection, capabilities, redaction
+           checkpoint recovery, compensation, journal projection, capabilities, redaction,
+           plan choice, prompt-layout prefix stability, replay
 ```
 
 `python -m pytest -q` needs no API keys. The live behaviour is exercised by the examples.

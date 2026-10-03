@@ -1,0 +1,353 @@
+{
+ "task_id": "task-20261002-201802",
+ "note": "recorded from a real run; secrets redacted at write time",
+ "events": [
+  {
+   "seq": 1,
+   "ts": 1790997482.7304451,
+   "type": "TASK_START",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "goal": "What is the tech community discussing right now, and what should an engineer take from it?",
+   "budget_usd": 2.0
+  },
+  {
+   "seq": 2,
+   "ts": 1790997482.73346,
+   "type": "INFERENCE_START",
+   "step": "plan",
+   "attempt_id": "attempt-01",
+   "provider": "gemini",
+   "model": "gemini-flash-latest",
+   "role": "planner",
+   "step_key": "d511465c41900faa"
+  },
+  {
+   "seq": 3,
+   "ts": 1790997485.669708,
+   "type": "INFERENCE_END",
+   "step": "plan",
+   "attempt_id": "attempt-01",
+   "role": "planner",
+   "inference_request_id": "63PAau6XAt-939IPsIyjiA0",
+   "provider": "gemini",
+   "model": "gemini-3.8-flash",
+   "usage": {
+    "provider": "gemini",
+    "model": "gemini-3.8-flash",
+    "request_id": "63PAau6XAt-939IPsIyjiA0",
+    "input_tokens": 63,
+    "output_tokens": 73,
+    "cached_tokens": null,
+    "reasoning_tokens": 449,
+    "tool_tokens": null,
+    "total_tokens": 585,
+    "output_includes_reasoning": false
+   },
+   "finish_reason": "STOP",
+   "latency_s": 2.92474508297164,
+   "ttft_s": 2.779592082952149,
+   "retries": 0,
+   "cost_usd": 0.00200475,
+   "cost_note": null,
+   "errors": []
+  },
+  {
+   "seq": 4,
+   "ts": 1790997485.702709,
+   "type": "STATE_WRITE",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "key": "plan"
+  },
+  {
+   "seq": 5,
+   "ts": 1790997485.707525,
+   "type": "CHECKPOINT",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "checkpoint_id": "after_plan"
+  },
+  {
+   "seq": 6,
+   "ts": 1790997485.711288,
+   "type": "TOOL_START",
+   "step": "fetch",
+   "attempt_id": "attempt-01",
+   "tool": "hn_top",
+   "tool_call_id": "fetch-call-01",
+   "args": {
+    "n": 8
+   }
+  },
+  {
+   "seq": 7,
+   "ts": 1790997487.730165,
+   "type": "TOOL_END",
+   "step": "fetch",
+   "attempt_id": "attempt-01",
+   "tool": "hn_top",
+   "tool_call_id": "fetch-call-01",
+   "outcome": "ok",
+   "latency_s": 2.0134598329896107
+  },
+  {
+   "seq": 8,
+   "ts": 1790997487.803396,
+   "type": "STATE_WRITE",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "key": "stories"
+  },
+  {
+   "seq": 9,
+   "ts": 1790997487.806997,
+   "type": "CHECKPOINT",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "checkpoint_id": "after_fetch"
+  },
+  {
+   "seq": 10,
+   "ts": 1790997487.810049,
+   "type": "INFERENCE_START",
+   "step": "research",
+   "attempt_id": "attempt-01",
+   "provider": "gemini",
+   "model": "gemini-flash-latest",
+   "role": "research",
+   "step_key": "c6a0fc33641fa692"
+  },
+  {
+   "seq": 11,
+   "ts": 1790997493.918231,
+   "type": "INFERENCE_END",
+   "step": "research",
+   "attempt_id": "attempt-01",
+   "role": "research",
+   "inference_request_id": "8HPAaoNv6auOsQ-u7s2JAw",
+   "provider": "gemini",
+   "model": "gemini-3.8-flash",
+   "usage": {
+    "provider": "gemini",
+    "model": "gemini-3.8-flash",
+    "request_id": "8HPAaoNv6auOsQ-u7s2JAw",
+    "input_tokens": 618,
+    "output_tokens": 241,
+    "cached_tokens": null,
+    "reasoning_tokens": 802,
+    "tool_tokens": null,
+    "total_tokens": 1661,
+    "output_includes_reasoning": false
+   },
+   "finish_reason": "STOP",
+   "latency_s": 6.097253417014144,
+   "ttft_s": 5.01699491700856,
+   "retries": 0,
+   "cost_usd": 0.00437475,
+   "cost_note": null,
+   "errors": []
+  },
+  {
+   "seq": 12,
+   "ts": 1790997493.951176,
+   "type": "STATE_WRITE",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "key": "research"
+  },
+  {
+   "seq": 13,
+   "ts": 1790997493.95572,
+   "type": "CHECKPOINT",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "checkpoint_id": "after_research"
+  },
+  {
+   "seq": 14,
+   "ts": 1790997493.9595861,
+   "type": "INFERENCE_START",
+   "step": "summarize",
+   "attempt_id": "attempt-01",
+   "provider": "gemini",
+   "model": "gemini-flash-latest",
+   "role": "summarizer",
+   "step_key": "1eef258d0bbaaf3d"
+  },
+  {
+   "seq": 15,
+   "ts": 1790997498.697144,
+   "type": "INFERENCE_END",
+   "step": "summarize",
+   "attempt_id": "attempt-01",
+   "role": "summarizer",
+   "inference_request_id": "9nPAapr4CMWN-8YP_sWWCA",
+   "provider": "gemini",
+   "model": "gemini-3.8-flash",
+   "usage": {
+    "provider": "gemini",
+    "model": "gemini-3.8-flash",
+    "request_id": "9nPAapr4CMWN-8YP_sWWCA",
+    "input_tokens": 308,
+    "output_tokens": 148,
+    "cached_tokens": null,
+    "reasoning_tokens": 863,
+    "tool_tokens": null,
+    "total_tokens": 1319,
+    "output_includes_reasoning": false
+   },
+   "finish_reason": "STOP",
+   "latency_s": 4.722901000001002,
+   "ttft_s": 4.222292375052348,
+   "retries": 0,
+   "cost_usd": 0.00402225,
+   "cost_note": null,
+   "errors": []
+  },
+  {
+   "seq": 16,
+   "ts": 1790997498.722054,
+   "type": "STATE_WRITE",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "key": "summary"
+  },
+  {
+   "seq": 17,
+   "ts": 1790997498.7264051,
+   "type": "CHECKPOINT",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "checkpoint_id": "after_summary"
+  },
+  {
+   "seq": 18,
+   "ts": 1790997498.730082,
+   "type": "TASK_END",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "status": "completed",
+   "spent_usd": 0.01040175
+  },
+  {
+   "seq": 19,
+   "ts": 1790997498.7415411,
+   "type": "TASK_RESUME",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "goal": "What is the tech community discussing right now, and what should an engineer take from it?",
+   "budget_usd": 2.0
+  },
+  {
+   "seq": 20,
+   "ts": 1790997498.744683,
+   "type": "STEP_RECOVERED",
+   "step": "plan",
+   "attempt_id": "attempt-02",
+   "step_key": "d511465c41900faa",
+   "kind": "inference"
+  },
+  {
+   "seq": 21,
+   "ts": 1790997498.7520099,
+   "type": "STATE_WRITE",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "key": "plan"
+  },
+  {
+   "seq": 22,
+   "ts": 1790997498.7553742,
+   "type": "CHECKPOINT",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "checkpoint_id": "after_plan"
+  },
+  {
+   "seq": 23,
+   "ts": 1790997498.7582872,
+   "type": "STEP_RECOVERED",
+   "step": "fetch",
+   "attempt_id": "attempt-02",
+   "step_key": "3988c5a6643f86f7",
+   "kind": "tool",
+   "tool": "hn_top"
+  },
+  {
+   "seq": 24,
+   "ts": 1790997498.782911,
+   "type": "STATE_WRITE",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "key": "stories"
+  },
+  {
+   "seq": 25,
+   "ts": 1790997498.786048,
+   "type": "CHECKPOINT",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "checkpoint_id": "after_fetch"
+  },
+  {
+   "seq": 26,
+   "ts": 1790997498.788645,
+   "type": "STEP_RECOVERED",
+   "step": "research",
+   "attempt_id": "attempt-02",
+   "step_key": "c6a0fc33641fa692",
+   "kind": "inference"
+  },
+  {
+   "seq": 27,
+   "ts": 1790997498.79477,
+   "type": "STATE_WRITE",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "key": "research"
+  },
+  {
+   "seq": 28,
+   "ts": 1790997498.797718,
+   "type": "CHECKPOINT",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "checkpoint_id": "after_research"
+  },
+  {
+   "seq": 29,
+   "ts": 1790997498.80021,
+   "type": "STEP_RECOVERED",
+   "step": "summarize",
+   "attempt_id": "attempt-02",
+   "step_key": "1eef258d0bbaaf3d",
+   "kind": "inference"
+  },
+  {
+   "seq": 30,
+   "ts": 1790997498.806294,
+   "type": "STATE_WRITE",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "key": "summary"
+  },
+  {
+   "seq": 31,
+   "ts": 1790997498.809263,
+   "type": "CHECKPOINT",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "checkpoint_id": "after_summary"
+  },
+  {
+   "seq": 32,
+   "ts": 1790997498.811834,
+   "type": "TASK_END",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "status": "completed",
+   "spent_usd": 0.01040175
+  }
+ ]
+}

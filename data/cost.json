@@ -17,9 +17,25 @@
       "output_per_m": 3.75,
       "source": "litellm:gemini-3.8-flash",
       "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+    },
+    "gemini-flash-latest": {
+      "cached_per_m": 0.075,
+      "fetched_at": "2026-10-03T03:45:42Z",
+      "input_per_m": 0.75,
+      "output_per_m": 3.75,
+      "source": "litellm:gemini-flash-latest",
+      "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
     }
   },
   "openai": {
+    "gpt-5.2": {
+      "cached_per_m": 0.175,
+      "fetched_at": "2026-10-03T03:45:42Z",
+      "input_per_m": 1.75,
+      "output_per_m": 14.0,
+      "source": "litellm:gpt-5.2",
+      "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+    },
     "gpt-5.2-2025-12-11": {
       "cached_per_m": 0.175,
       "fetched_at": "2026-10-03T02:46:43Z",

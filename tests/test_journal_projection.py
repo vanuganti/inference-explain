@@ -58,3 +58,13 @@ def test_trace_nodes_follow_recorded_events(stack):
 def test_unknown_event_types_are_rejected(stack):
     with pytest.raises(ValueError):
         stack.j.emit(stack.task_id, "MADE_UP_EVENT")
+
+
+def test_counters_agree_with_the_trace(stack):
+    """The summary must not contradict the story: a blocked retry and a recovery are both counted."""
+    run_scenario(stack)
+    c = project_task(stack.j, stack.task_id)["counts"]
+    assert c["retries_blocked"] == 1 and c["retries_executed"] == 0
+    assert c["recoveries"] == 1 and c["reconciliations"] == 1
+    text = explain_agent_task(stack.j, stack.task_id)
+    assert "0 executed · 1 blocked" in text and "Recoveries" in text

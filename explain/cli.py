@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 
@@ -31,14 +32,45 @@ def events_table(j: Journal, task_id: str) -> str:
     return P.render()
 
 
+def load_recording(path: str) -> tuple[str, Journal]:
+    """A recorded journal file -> an in-memory journal. No keys, no network, no SQLite file."""
+    with open(path) as f:
+        rec = json.load(f)
+    j = Journal(":memory:")
+    j.import_events(rec["task_id"], rec["events"])
+    return rec["task_id"], j
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="explain-agent")
-    ap.add_argument("command", choices=["explain", "trace", "events", "list"])
-    ap.add_argument("task_id", nargs="?")
+    ap.add_argument("command", choices=["explain", "trace", "events", "list", "export", "replay"])
+    ap.add_argument("task_id", nargs="?", help="task id (replay: path to a recorded .json)")
+    ap.add_argument("--out", help="export: output file (default: stdout)")
     ap.add_argument("--db", help="journal path (default: EXPLAIN_AGENT_DB)")
     ap.add_argument("--json", action="store_true", help="machine-readable output (events only)")
     a = ap.parse_args(argv)
+    if a.command == "replay":
+        if not a.task_id:
+            ap.error("replay needs a recorded file, e.g. samples/04_transaction_recovery.json")
+        tid, j = load_recording(a.task_id)
+        print(paint(f"replaying a recorded journal ({len(j.events(tid))} events): no keys, no network", "dim"), "\n")
+        print(explain_agent_task(j, tid), "\n")
+        print(render_trace(j, tid))
+        return 0
     j = Journal(a.db or Settings.load().db_path)
+    if a.command == "export":
+        if not a.task_id:
+            ap.error("export needs a task id (see: explain-agent list)")
+        rec = {"task_id": a.task_id, "note": "recorded from a real run; secrets redacted at write time",
+               "events": j.events(a.task_id)}
+        text = json.dumps(rec, indent=1)
+        if a.out:
+            os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
+            open(a.out, "w").write(text + "\n")
+            print(f"exported {len(rec['events'])} events to {a.out}")
+        else:
+            print(text)
+        return 0
     if a.command == "list":
         for tid, goal, status, started, ended in j.tasks():
             print(f"{tid:<24}{status:<12}{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(started))}  {goal}")

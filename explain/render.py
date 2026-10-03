@@ -29,8 +29,9 @@ def money(r: InferenceResult) -> str:
 
 def box(title: str, rows: list[tuple[str, str] | None], width: int = W) -> str:
     panel = Panel(title)
+    lw = max([18] + [len(r[0]) + 2 for r in rows if r])  # label column grows with the longest label
     for r in rows:
-        panel.row() if r is None else panel.kv(r[0], r[1])
+        panel.row() if r is None else panel.kv(r[0], r[1], lw)
     return panel.render(min_width=width)
 
 
@@ -44,6 +45,18 @@ def tag(value: str, provenance: str) -> str:
     return value if value.startswith(UNAVAILABLE) else f"{value}  " + paint(provenance, "dim")
 
 
+PHYSICAL_LABELS = {"gpu_placement": "GPU Placement", "kv_occupancy": "KV Occupancy",
+                   "graph_breaks": "Graph Breaks", "kernel_fusion": "Kernel Fusion"}
+
+
+def physical_rows(caps: ProviderCapabilities) -> list[tuple[str, str]]:
+    """One collapsed line when the provider exposes none of the physical internals (hosted APIs);
+    individual rows once any is observed (e.g. a future vLLM adapter)."""
+    if not caps.physical_observed():
+        return [("Physical internals", f"{UNAVAILABLE}  (hosted provider)")]
+    return [(label, cap(getattr(caps, f))) for f, label in PHYSICAL_LABELS.items()]
+
+
 def explain_inference(r: InferenceResult, caps: ProviderCapabilities, router: str = "configured provider/model") -> str:
     pv = caps.provenance()
     return box("EXPLAIN INFERENCE", [
@@ -53,10 +66,7 @@ def explain_inference(r: InferenceResult, caps: ProviderCapabilities, router: st
         ("Router Decision", router),
         ("Finish", r.finish_reason or UNAVAILABLE),
         None,
-        ("Placement", cap(caps.gpu_placement)),
-        ("KV Occupancy", cap(caps.kv_occupancy)),
-        ("Graph Breaks", cap(caps.graph_breaks)),
-        ("Kernel Fusion", cap(caps.kernel_fusion)),
+        *physical_rows(caps),
     ])
 
 
@@ -66,6 +76,7 @@ def explain_analyze(r: InferenceResult, caps: ProviderCapabilities | None = None
         ("Input Tokens", tag(n(u.input_tokens), OBSERVED)),
         ("Output Tokens", tag(n(u.output_tokens), OBSERVED)),
         ("Cached Tokens", tag(n(u.cached_tokens), OBSERVED)),
+        *([("Cache Write Tokens", tag(n(u.cache_write_tokens), OBSERVED))] if u.cache_write_tokens is not None else []),
         ("Reasoning Tokens", tag(n(u.reasoning_tokens), OBSERVED)),
         ("Tool Tokens", tag(n(u.tool_tokens), OBSERVED)),
         ("Total Tokens", tag(n(u.total_tokens), OBSERVED)),

@@ -91,6 +91,17 @@ class Journal:
                                (task_id,)).fetchall()
         return [{"seq": s, "ts": t, "type": ty, "step": st, **json.loads(p)} for s, t, ty, st, p in rows]
 
+    def import_events(self, task_id: str, events: list[dict]) -> None:
+        """Load recorded events (from `explain export`) so the views can be replayed without
+        keys or network. Unknown event types are rejected like in emit()."""
+        with self.db:
+            for e in events:
+                if e["type"] not in EVENT_TYPES:
+                    raise ValueError(f"unknown event type {e['type']!r}")
+                payload = {k: v for k, v in e.items() if k not in ("seq", "ts", "type", "step")}
+                self.db.execute("INSERT INTO events VALUES (?,?,?,?,?,?)",
+                                (task_id, e["seq"], e["ts"], e["type"], e.get("step"), dumps(payload)))
+
     def tasks(self) -> list[tuple]:
         return self.db.execute("SELECT task_id, goal, status, started, ended FROM tasks "
                                "ORDER BY started DESC").fetchall()

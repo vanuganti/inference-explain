@@ -24,6 +24,10 @@ class ProviderCapabilities:
     kernel_fusion: bool = False
 
 
+    def physical_observed(self) -> list[str]:
+        """Physical-internals fields this provider actually exposes (none, for hosted APIs)."""
+        return [f for f in ("gpu_placement", "kv_occupancy", "graph_breaks", "kernel_fusion") if getattr(self, f)]
+
     def provenance(self) -> dict[str, str]:
         """How each EXPLAIN field is known: OBSERVED (the provider/client reported it),
         DERIVED (calculated from observed values), ESTIMATED, or UNAVAILABLE. Never fabricated."""
@@ -51,6 +55,7 @@ class InferenceUsage:
     reasoning_tokens: Optional[int] = None
     tool_tokens: Optional[int] = None
     total_tokens: Optional[int] = None
+    cache_write_tokens: Optional[int] = None  # only Anthropic reports cache writes
     # OpenAI's output_tokens already contains reasoning; Gemini's
     # candidates_token_count does not. Kept so cost and display stay honest.
     output_includes_reasoning: bool = True
@@ -63,6 +68,9 @@ class InferenceRequest:
     max_output_tokens: Optional[int] = None
     temperature: Optional[float] = None
     model: Optional[str] = None  # None = provider's configured model
+    # mark the system prompt as a cache breakpoint where the provider needs it (Anthropic);
+    # OpenAI and Gemini cache stable prefixes automatically.
+    cache_system: bool = False
 
 
 @dataclass

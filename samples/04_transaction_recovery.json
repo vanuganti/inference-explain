@@ -1,0 +1,311 @@
+{
+ "task_id": "task-7422",
+ "note": "recorded from a real run; secrets redacted at write time",
+ "events": [
+  {
+   "seq": 1,
+   "ts": 1790997568.734117,
+   "type": "TASK_START",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "goal": "Complete approved purchase",
+   "budget_usd": 2.0
+  },
+  {
+   "seq": 2,
+   "ts": 1790997569.096895,
+   "type": "INFERENCE_START",
+   "step": "plan",
+   "attempt_id": "attempt-01",
+   "provider": "openai",
+   "model": "gpt-5.2",
+   "role": "planner",
+   "step_key": "d61a6d5344b1d4a8"
+  },
+  {
+   "seq": 3,
+   "ts": 1790997571.905343,
+   "type": "INFERENCE_END",
+   "step": "plan",
+   "attempt_id": "attempt-01",
+   "role": "planner",
+   "inference_request_id": "resp_0ac73f3026b1b528006ac074419b6087d0b99832691266b89a",
+   "provider": "openai",
+   "model": "gpt-5.2-2025-12-11",
+   "usage": {
+    "provider": "openai",
+    "model": "gpt-5.2-2025-12-11",
+    "request_id": "resp_0ac73f3026b1b528006ac074419b6087d0b99832691266b89a",
+    "input_tokens": 65,
+    "output_tokens": 126,
+    "cached_tokens": 0,
+    "reasoning_tokens": 20,
+    "tool_tokens": null,
+    "total_tokens": 191,
+    "output_includes_reasoning": true
+   },
+   "finish_reason": "completed",
+   "latency_s": 2.8003914590226486,
+   "ttft_s": 1.1010577090200968,
+   "retries": 0,
+   "cost_usd": 0.00187775,
+   "cost_note": null,
+   "errors": []
+  },
+  {
+   "seq": 4,
+   "ts": 1790997571.922142,
+   "type": "MEMORY_LOOKUP",
+   "step": "memory",
+   "attempt_id": "attempt-01",
+   "query": "preferred vendor",
+   "retrieval": "FTS5 bm25 (porter stemming; no embeddings)",
+   "candidates": 2,
+   "returned": 2,
+   "top_score": 0.8682,
+   "sources": [
+    "system",
+    "user"
+   ],
+   "pii_filter": "PASSED",
+   "tokens_injected_est": 37,
+   "hit": true,
+   "items": [
+    {
+     "id": 1,
+     "text": "Preferred vendor for cloud licences is Acme Cloud; renewals go through procurement.",
+     "score": 0.8682
+    },
+    {
+     "id": 2,
+     "text": "Approved vendors: Acme Cloud, Northwind Software, Globex Compute.",
+     "score": 0.0
+    }
+   ]
+  },
+  {
+   "seq": 5,
+   "ts": 1790997571.942963,
+   "type": "POLICY_CHECK",
+   "step": "policy",
+   "attempt_id": "attempt-01",
+   "rule": "purchase policy",
+   "result": "PASSED",
+   "detail": "vendor=Acme Cloud amount=42.00 limit=100.00"
+  },
+  {
+   "seq": 6,
+   "ts": 1790997571.9510632,
+   "type": "TRANSACTION_START",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "txn_id": "txn-2968",
+   "state": "ACTIVE",
+   "goal": "Complete approved purchase",
+   "amount": 42.0,
+   "currency": "USD"
+  },
+  {
+   "seq": 7,
+   "ts": 1790997571.958411,
+   "type": "COMPENSATION_REGISTERED",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "txn_id": "txn-2968",
+   "comp_id": "txn-2968-comp-01",
+   "name": "payment.refund"
+  },
+  {
+   "seq": 8,
+   "ts": 1790997571.968862,
+   "type": "CHECKPOINT",
+   "step": null,
+   "attempt_id": "attempt-01",
+   "checkpoint_id": "cp-05"
+  },
+  {
+   "seq": 9,
+   "ts": 1790997571.976186,
+   "type": "DURABLE_INTENT",
+   "step": "payment",
+   "attempt_id": "attempt-01",
+   "txn_id": "txn-2968",
+   "tool_call_id": "payment-call-01",
+   "tool": "payment.charge",
+   "idempotency_key": "pay_task-7422_01",
+   "args": {
+    "amount": 42.0,
+    "currency": "USD"
+   }
+  },
+  {
+   "seq": 10,
+   "ts": 1790997571.983077,
+   "type": "TOOL_START",
+   "step": "payment",
+   "attempt_id": "attempt-01",
+   "tool": "payment.charge",
+   "tool_call_id": "payment-call-01",
+   "txn_id": "txn-2968",
+   "idempotency_key": "pay_task-7422_01"
+  },
+  {
+   "seq": 11,
+   "ts": 1790997571.9895701,
+   "type": "SIDE_EFFECT_COMMITTED",
+   "step": "payment",
+   "attempt_id": "attempt-01",
+   "source": "payment-service observer",
+   "txn_id": "txn-2968",
+   "payment_id": "payment-0007",
+   "idempotency_key": "pay_task-7422_01",
+   "status": "COMMITTED"
+  },
+  {
+   "seq": 12,
+   "ts": 1790997571.9962912,
+   "type": "ACKNOWLEDGEMENT_LOST",
+   "step": "payment",
+   "attempt_id": "attempt-01",
+   "txn_id": "txn-2968",
+   "tool_call_id": "payment-call-01",
+   "idempotency_key": "pay_task-7422_01",
+   "error": "AcknowledgementTimeout: no acknowledgement for pay_task-7422_01 within timeout"
+  },
+  {
+   "seq": 13,
+   "ts": 1790997572.0018811,
+   "type": "TOOL_END",
+   "step": "payment",
+   "attempt_id": "attempt-01",
+   "tool": "payment.charge",
+   "tool_call_id": "payment-call-01",
+   "txn_id": "txn-2968",
+   "outcome": "no_acknowledgement",
+   "latency_s": 0.013116583984810859
+  },
+  {
+   "seq": 14,
+   "ts": 1790997572.00846,
+   "type": "TRANSACTION_COMMIT_UNKNOWN",
+   "step": "payment",
+   "attempt_id": "attempt-01",
+   "txn_id": "txn-2968",
+   "from_state": "ACTIVE",
+   "to_state": "COMMIT_UNKNOWN",
+   "retry_state": "BLOCKED_PENDING_COMMIT_CHECK",
+   "tool_call_id": "payment-call-01",
+   "idempotency_key": "pay_task-7422_01"
+  },
+  {
+   "seq": 15,
+   "ts": 1790997572.022649,
+   "type": "RETRY_REQUESTED",
+   "step": "payment",
+   "attempt_id": "attempt-01",
+   "txn_id": "txn-2968",
+   "tool_call_id": "payment-call-01",
+   "idempotency_key": "pay_task-7422_01",
+   "reason": "caller re-issued after ambiguous outcome"
+  },
+  {
+   "seq": 16,
+   "ts": 1790997572.029085,
+   "type": "RETRY_BLOCKED",
+   "step": "payment",
+   "attempt_id": "attempt-01",
+   "txn_id": "txn-2968",
+   "tool_call_id": "payment-call-01",
+   "idempotency_key": "pay_task-7422_01",
+   "state": "COMMIT_UNKNOWN",
+   "reason": "pending commit reconciliation"
+  },
+  {
+   "seq": 17,
+   "ts": 1790997572.046576,
+   "type": "TASK_RESUME",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "goal": "",
+   "budget_usd": 2.0
+  },
+  {
+   "seq": 18,
+   "ts": 1790997572.052085,
+   "type": "RECOVERY_START",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "checkpoint_id": "cp-05"
+  },
+  {
+   "seq": 19,
+   "ts": 1790997572.054682,
+   "type": "RECONCILIATION_START",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "txn_id": "txn-2968",
+   "tool_call_id": "payment-call-01",
+   "idempotency_key": "pay_task-7422_01",
+   "reason": "commit status unknown"
+  },
+  {
+   "seq": 20,
+   "ts": 1790997572.067133,
+   "type": "RECONCILIATION_RESULT",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "txn_id": "txn-2968",
+   "tool_call_id": "payment-call-01",
+   "result": "COMMITTED",
+   "payment_id": "payment-0007",
+   "external_status": "COMMITTED",
+   "idempotency_key": "pay_task-7422_01"
+  },
+  {
+   "seq": 21,
+   "ts": 1790997572.0754392,
+   "type": "TRANSACTION_COMMIT",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "txn_id": "txn-2968",
+   "from_state": "COMMIT_UNKNOWN",
+   "to_state": "COMMITTED",
+   "via": "reconciliation"
+  },
+  {
+   "seq": 22,
+   "ts": 1790997572.081332,
+   "type": "RECOVERY_END",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "checkpoint_id": "cp-05",
+   "reconciled": [
+    "COMMITTED"
+   ]
+  },
+  {
+   "seq": 23,
+   "ts": 1790997572.089439,
+   "type": "IDEMPOTENCY_CHECK",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "txn_id": "txn-2968",
+   "idempotency_key": "pay_task-7422_01",
+   "first_payment_id": "payment-0007",
+   "returned_payment_id": "payment-0007",
+   "records_before": 1,
+   "records_after": 1,
+   "new_side_effect": false,
+   "duplicate_prevented": true
+  },
+  {
+   "seq": 24,
+   "ts": 1790997572.099726,
+   "type": "TASK_END",
+   "step": null,
+   "attempt_id": "attempt-02",
+   "status": "recovered",
+   "spent_usd": 0.00187775
+  }
+ ]
+}

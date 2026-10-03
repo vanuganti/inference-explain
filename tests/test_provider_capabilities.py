@@ -19,13 +19,21 @@ def test_hosted_runtime_internals_are_never_claimed():
             assert caps.provenance()[f] == UNAVAILABLE
 
 
-def test_unavailable_renders_for_hosted_fields_and_is_never_a_number():
+def test_hosted_internals_collapse_to_one_unavailable_line():
     for p in providers():
         r = InferenceResult(p.name, "m", "t", InferenceUsage(p.name, "m", "id", 1, 2, total_tokens=3))
         out = explain_inference(r, p.capabilities())
-        for label in ("Placement", "KV Occupancy", "Graph Breaks", "Kernel Fusion"):
-            line = next(l for l in out.splitlines() if label in l)
-            assert UNAVAILABLE in line
+        line = next(l for l in out.splitlines() if "Physical internals" in l)
+        assert UNAVAILABLE in line and "hosted provider" in line
+        assert "Graph Breaks" not in out  # collapsed, not four rows of noise
+
+
+def test_physical_rows_expand_when_a_provider_really_exposes_them():
+    caps = ProviderCapabilities(kv_occupancy=True)  # e.g. a future vLLM adapter
+    r = InferenceResult("vllm", "m", "t", InferenceUsage("vllm", "m", "id", 1, 2, total_tokens=3))
+    out = explain_inference(r, caps)
+    assert "KV Occupancy" in out and "Physical internals" not in out
+    assert caps.provenance()["kv_occupancy"] == "OBSERVED" and caps.provenance()["gpu_placement"] == UNAVAILABLE
 
 
 def test_provenance_distinguishes_observed_derived_unavailable():

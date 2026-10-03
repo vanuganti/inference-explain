@@ -45,7 +45,8 @@ class AnthropicProvider(InferenceProvider):
             "messages": [{"role": "user", "content": req.prompt}],
         }
         if req.system:
-            p["system"] = req.system
+            p["system"] = ([{"type": "text", "text": req.system, "cache_control": {"type": "ephemeral"}}]
+                           if req.cache_system else req.system)
         if req.temperature is not None:  # newer models reject non-default sampling
             p["temperature"] = req.temperature
         effort = self._EFFORT.get(reasoning_effort() or "")
@@ -105,7 +106,7 @@ class AnthropicProvider(InferenceProvider):
             provider=self.name, model=_g(raw, "model") or req.model or self.model,
             request_id=_g(raw, "id"),
             input_tokens=total_in, output_tokens=out,
-            cached_tokens=read,  # cache writes are billed at input rate here
+            cached_tokens=read, cache_write_tokens=write,  # writes are billed at the input rate here
             reasoning_tokens=None, tool_tokens=None,
             total_tokens=None if total_in is None or out is None else total_in + out,
             output_includes_reasoning=True)

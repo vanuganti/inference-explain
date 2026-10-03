@@ -101,7 +101,10 @@ def project_task(j: Journal, task_id: str) -> dict | None:
             state_writes=len(of("STATE_WRITE")),
             checkpoints=len(of("CHECKPOINT")),
             recovered_steps=len(of("STEP_RECOVERED")),
-            retries=sum(e.get("retries", 0) for e in of("INFERENCE_END") + of("INFERENCE_ERROR")),
+            recoveries=len(of("RECOVERY_START")),
+            retries_executed=sum(e.get("retries", 0) for e in of("INFERENCE_END") + of("INFERENCE_ERROR")),
+            retries_blocked=len(of("RETRY_BLOCKED")),
+            reconciliations=len(of("RECONCILIATION_RESULT")),
             errors=len(of("INFERENCE_ERROR")),
         ))
 
@@ -196,13 +199,15 @@ def explain_agent_task(j: Journal, task_id: str) -> str:
     # ---- runtime --------------------------------------------------------------------
     c = p["counts"]
     P.sep("RUNTIME")
-    P.kv("Elapsed", secs(p["wall_s"]), 18)
-    P.kv("Inference calls", str(c["inference_calls"]), 18).kv("Tool calls", str(c["tool_calls"]), 18)
-    P.kv("Memory lookups", str(c["memory_lookups"]), 18)
-    P.kv("Journal events", str(c["journal_events"]), 18).kv("State writes", str(c["state_writes"]), 18)
-    P.kv("Checkpoints", str(c["checkpoints"]), 18).kv("Recovered steps", str(c["recovered_steps"]), 18)
-    P.kv("Retries / errors", f"{c['retries']} / {c['errors']}", 18)
+    P.kv("Elapsed", secs(p["wall_s"]), 20)
+    P.kv("Inference calls", str(c["inference_calls"]), 20).kv("Tool calls", str(c["tool_calls"]), 20)
+    P.kv("Memory lookups", str(c["memory_lookups"]), 20)
+    P.kv("Journal events", str(c["journal_events"]), 20).kv("State writes", str(c["state_writes"]), 20)
+    P.kv("Checkpoints", str(c["checkpoints"]), 20)
+    P.kv("Retries", f"{c['retries_executed']} executed · {c['retries_blocked']} blocked", 20)
+    P.kv("Recoveries", f"{c['recoveries']} (reconciliations: {c['reconciliations']})", 20)
+    P.kv("Steps restored", f"{c['recovered_steps']} from the step ledger (no re-execution)", 20)
+    P.kv("Inference errors", str(c["errors"]), 20)
     P.row()
-    for lab in ("GPU Placement", "KV Occupancy", "Graph Breaks", "Kernel Fusion"):
-        P.kv(lab, f"{UNAVAILABLE} (hosted provider)", 18)
+    P.kv("Physical internals", f"{UNAVAILABLE}  (hosted provider)", 20)
     return P.render(min_width=96)

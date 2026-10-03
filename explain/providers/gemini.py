@@ -83,8 +83,9 @@ class GeminiProvider(InferenceProvider):
 
     def count_tokens(self, req) -> Optional[int]:
         try:
-            r = self.client.models.count_tokens(
-                model=req.model or self.model, contents=req.prompt)
+            # the Gemini API's count_tokens takes contents only, so count system + prompt as one text
+            text = f"{req.system}\n\n{req.prompt}" if req.system else req.prompt
+            r = self.client.models.count_tokens(model=req.model or self.model, contents=text)
             return r.total_tokens
         except Exception:  # noqa: BLE001
             return None

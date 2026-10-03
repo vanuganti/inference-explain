@@ -27,6 +27,17 @@ def filter_pii(text: str) -> tuple[str, dict[str, int]]:
     return text, found
 
 
+DEMO_SEED = [
+    ("Preferred vendor for cloud licences is Acme Cloud; renewals go through procurement.", "user"),
+    ("Approved vendors: Acme Cloud, Northwind Software, Globex Compute.", "system"),
+    ("Contact the Acme Cloud account rep Jane Park at jane.park@acme-cloud.example or 512-555-0142 for quotes.", "user"),
+    ("Purchases above 100 USD need a second approver; below that the requester may self-approve.", "system"),
+    ("Laptop refresh happens every 36 months; exceptions need a manager ticket.", "user"),
+    ("Team offsite budget is set each January and tracked by finance.", "derived"),
+    ("Payment terms with approved vendors are net 30 unless the contract says otherwise.", "system"),
+]
+
+
 @dataclass
 class Lookup:
     query: str

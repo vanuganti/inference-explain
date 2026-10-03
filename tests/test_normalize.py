@@ -77,9 +77,8 @@ def test_render_shows_unavailable():
     usage = InferenceUsage("gemini", model="m", request_id="r", input_tokens=1, output_tokens=2, total_tokens=3)
     r = InferenceResult("gemini", "m", "t", usage, latency_s=1.0)
     out = explain_inference(r, ProviderCapabilities(token_usage=True)) + explain_analyze(r)
-    for f in ("Placement", "KV Occupancy", "Graph Breaks"):
-        assert f in out
-    assert out.count("UNAVAILABLE") >= 6
+    assert "Physical internals" in out
+    assert out.count("UNAVAILABLE") >= 4
     assert "Estimated Cost" in out
 
 
