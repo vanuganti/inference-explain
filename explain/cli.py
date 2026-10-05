@@ -13,6 +13,7 @@ from .journal import Journal
 from .render import secs
 from .style import Panel, paint
 from .trace import render_trace
+from .trajectory import render_trajectory
 
 KEYS = ("provider", "model", "tool", "txn_id", "tool_call_id", "idempotency_key", "payment_id", "checkpoint_id",
         "result", "outcome", "from_state", "to_state", "reason", "query", "rule", "name", "status")
@@ -43,7 +44,7 @@ def load_recording(path: str) -> tuple[str, Journal]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="explain-agent")
-    ap.add_argument("command", choices=["explain", "trace", "events", "list", "export", "replay"])
+    ap.add_argument("command", choices=["explain", "trace", "trajectory", "events", "list", "export", "replay"])
     ap.add_argument("task_id", nargs="?", help="task id (replay: path to a recorded .json)")
     ap.add_argument("--out", help="export: output file (default: stdout)")
     ap.add_argument("--db", help="journal path (default: EXPLAIN_AGENT_DB)")
@@ -80,7 +81,8 @@ def main(argv: list[str] | None = None) -> int:
     if a.command == "events" and a.json:
         print(json.dumps(j.events(a.task_id), indent=2))
         return 0
-    print({"explain": explain_agent_task, "trace": render_trace, "events": events_table}[a.command](j, a.task_id))
+    print({"explain": explain_agent_task, "trace": render_trace, "trajectory": render_trajectory,
+           "events": events_table}[a.command](j, a.task_id))
     return 0
 
 

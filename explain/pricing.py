@@ -14,7 +14,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from .config import _get, prices
+from .config import _get, prices, provider_models
 from .schema import InferenceUsage
 
 PRICE_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
@@ -82,25 +82,22 @@ def _fetch(provider: str, model: str) -> dict | None:
 def get_price(provider: str, model: str | None) -> tuple[dict | None, str]:
     """(price dict, origin) with origin in env|file|fetched|none."""
     env = prices(provider)
-    if env["input"] is not None and env["output"] is not None:
+    # one price pair per provider can't describe several models, so the override needs a single model
+    if len(provider_models(provider)) <= 1 and env["input"] is not None and env["output"] is not None:
         return {"input_per_m": env["input"], "output_per_m": env["output"],
                 "cached_per_m": env["cached"]}, "env"
     if not model:
         return None, "none"
     data = _load()
-    # served names (e.g. '-001', or a concrete version behind a '-latest' alias) may
-    # differ from the configured model, so try both.
-    names = [model] + [m for m in [_get(f"{provider.upper()}_MODEL")] if m and m != model]
-    for name in names:
-        hit = _lookup(data.get(provider, {}), name)
-        if hit:
-            return hit[1], "file"
-    for name in names:
-        fetched = _fetch(provider, name)
-        if fetched:
-            data.setdefault(provider, {})[name] = fetched
-            _save(data)
-            return fetched, "fetched"
+    # served names (e.g. '-001') may differ from the configured model; _lookup also matches by prefix
+    hit = _lookup(data.get(provider, {}), model)
+    if hit:
+        return hit[1], "file"
+    fetched = _fetch(provider, model)
+    if fetched:
+        data.setdefault(provider, {})[model] = fetched
+        _save(data)
+        return fetched, "fetched"
     return None, "none"
 
 

@@ -12,6 +12,7 @@ from ..schema import (InferenceRequest, InferenceResult, InferenceUsage,
 
 class InferenceProvider(ABC):
     name: str = "base"
+    tier: str = "standard"  # capability tier for the plan's pass 1: small | standard | frontier
     MAX_ATTEMPTS = 3
     BACKOFF_S = 1.0
 

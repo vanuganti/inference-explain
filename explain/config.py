@@ -58,11 +58,28 @@ class Settings:
         )
 
 
-def provider_credentials(provider: str) -> tuple[str | None, str | None]:
-    """(api_key, model) for a provider name, from the environment."""
+TIERS = ("small", "standard", "frontier")  # capability tiers, weakest first; untagged models are "standard"
+
+
+def provider_models(provider: str) -> list[tuple[str, str]]:
+    """[(model, tier)] from <P>_MODELS="a:small,b,c:frontier" (tier optional), a single model is just "a".""" 
     load_env()
     p = provider.upper()
-    return _get(f"{p}_API_KEY"), _get(f"{p}_MODEL")
+    raw = _get(f"{p}_MODELS") or ""
+    out: list[tuple[str, str]] = []
+    for item in (x.strip() for x in raw.split(",")):
+        if not item:
+            continue
+        model, _, tier = item.rpartition(":")
+        out.append((model, tier) if model and tier in TIERS else (item, "standard"))
+    return out
+
+
+def provider_credentials(provider: str) -> tuple[str | None, str | None]:
+    """(api_key, model) for a provider name, from the environment. With several models, the first."""
+    load_env()
+    models = provider_models(provider)
+    return _get(f"{provider.upper()}_API_KEY"), (models[0][0] if models else None)
 
 
 PROVIDERS = ("openai", "gemini", "anthropic")

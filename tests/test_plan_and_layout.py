@@ -32,6 +32,8 @@ def memory():
 
 def prices(monkeypatch, **per):
     monkeypatch.setattr("explain.config.load_env", lambda *a, **k: None)
+    for v in ("OPENAI", "GEMINI", "ANTHROPIC"):  # a developer's .env must not change the test
+        monkeypatch.delenv(f"{v}_MODELS", raising=False)
     for name, (i, o) in per.items():
         monkeypatch.setenv(f"{name.upper()}_PRICE_INPUT_PER_M", str(i))
         monkeypatch.setenv(f"{name.upper()}_PRICE_OUTPUT_PER_M", str(o))
@@ -62,7 +64,7 @@ def test_otherwise_cheapest_worst_case_wins_and_rejections_carry_numbers(monkeyp
 def test_unpriced_or_uncountable_candidates_are_rejected_not_guessed(monkeypatch):
     monkeypatch.setenv("EXPLAIN_PRICE_AUTOFETCH", "0")
     prices(monkeypatch, gemini=(0.1, 1))
-    for v in ("OPENAI_PRICE_INPUT_PER_M", "OPENAI_PRICE_OUTPUT_PER_M", "OPENAI_MODEL"):
+    for v in ("OPENAI_PRICE_INPUT_PER_M", "OPENAI_PRICE_OUTPUT_PER_M", "OPENAI_MODELS"):
         monkeypatch.delenv(v, raising=False)
     plan = build_plan("Draft a note", "sys", memory(), [P("openai", "o", 40), P("gemini", "g", 40), P("anthropic", "a", None)])
     reasons = {c["label"]: c["reason"] for c in plan["candidates"]}
@@ -126,3 +128,50 @@ def test_checked_in_samples_replay_without_keys_or_network():
     for f in sorted(os.listdir(root)):
         tid, j = load_recording(os.path.join(root, f))
         assert "EXPLAIN AGENT TASK" in explain_agent_task(j, tid)
+
+
+def tiered(name, model, tier, n_in=40):
+    p = P(name, model, n_in); p.tier = tier
+    return p
+
+
+def test_pass1_filters_by_task_before_pass2_ranks_by_cost(monkeypatch):
+    prices(monkeypatch, openai=(1, 10), gemini=(0.1, 1))  # gemini is the cheapest
+    cands = [tiered("openai", "big", "frontier"), tiered("gemini", "mini", "small")]
+    easy = build_plan("Draft a polite note", "sys", memory(), cands)
+    assert easy["pass1"]["needs"] == "small" and easy["candidates"][easy["chosen"]]["label"] == "gemini/mini"
+    hard = build_plan("Compare vendors and recommend one", "sys", memory(), [tiered("openai", "mid", "standard"), *cands])
+    assert hard["pass1"]["needs"] == "standard"
+    # cheapest model is excluded by capability, not by cost
+    assert hard["candidates"][hard["chosen"]]["label"] != "gemini/mini"
+    why = {c["label"]: c["reason"] for c in hard["candidates"]}
+    assert why["gemini/mini"].startswith("pass 1:")
+
+
+def test_no_capable_model_means_no_plan_not_a_silent_downgrade(monkeypatch):
+    prices(monkeypatch, gemini=(0.1, 1))
+    plan = build_plan("Debug this algorithm step by step", "sys", memory(), [tiered("gemini", "mini", "small")])
+    assert plan["pass1"]["needs"] == "frontier" and plan["chosen"] is None
+
+
+def test_plan_view_lists_what_the_demo_cannot_expose(monkeypatch, tmp_path):
+    prices(monkeypatch, openai=(1, 10))
+    j = Journal(str(tmp_path / "j.db"))
+    j.emit("t", "PLAN_CHOSEN", "q1", plan=build_plan("Draft a note", "sys", memory(), [P("openai", "o", 40)]))
+    out = render_plan(j.events("t")[0])
+    assert "Pass 1" in out and "TIER" in out and "Reuse guarantee" in out and "UNAVAILABLE" in out
+
+
+def test_models_list_parses_tiers(monkeypatch):
+    from explain.config import provider_models
+    monkeypatch.setattr("explain.config.load_env", lambda *a, **k: None)
+    monkeypatch.setenv("OPENAI_MODELS", "a:small, b ,c:frontier")
+    assert provider_models("openai") == [("a", "small"), ("b", "standard"), ("c", "frontier")]
+    monkeypatch.setenv("OPENAI_MODELS", "solo")
+    assert provider_models("openai") == [("solo", "standard")]
+
+
+def test_empty_style_is_ignored_on_a_color_terminal(monkeypatch):
+    from explain.style import paint
+    monkeypatch.setenv("FORCE_COLOR", "1"); monkeypatch.delenv("NO_COLOR", raising=False)
+    assert paint("x", "") == "x" and paint("x", "", "bold") == "\x1b[1mx\x1b[0m"

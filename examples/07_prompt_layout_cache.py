@@ -60,7 +60,7 @@ def main() -> int:
     st = Settings.load()
     names = configured_providers()
     if not names:
-        print("no provider configured (set <PROVIDER>_API_KEY and <PROVIDER>_MODEL)", file=sys.stderr)
+        print("no provider configured (set <PROVIDER>_API_KEY and <PROVIDER>_MODELS)", file=sys.stderr)
         return 2
     book = handbook()
     run_id = time.strftime('%Y%m%d-%H%M%S')

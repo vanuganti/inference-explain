@@ -27,6 +27,10 @@ EXPLAIN AGENT TASK
     transactions, retries, checkpoints, authority, cost and time?
 ```
 
+## Example output
+
+Each example below shows a screenshot of its real, coloured terminal output. Click one, or open **[docs/EXAMPLES.md](docs/EXAMPLES.md)**, for all of them with copyable plain text.
+
 ## Companion code for *Database Kernels for AI*
 
 This is the reference implementation for **[Your AI Agent Needs a Transaction Manager](https://anuganti.com/articles/ai-agent-needs-transaction-manager/)**,
@@ -61,14 +65,15 @@ ever read from the environment. Models are never hard-coded: set the one you wan
 | Variable | Meaning |
 |---|---|
 | `EXPLAIN_PROVIDER` | `openai`, `gemini` or `anthropic` |
-| `OPENAI_API_KEY`, `OPENAI_MODEL` | required for OpenAI |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | required for Gemini |
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | required for Anthropic |
+| `OPENAI_API_KEY`, `OPENAI_MODELS` | required for OpenAI |
+| `GEMINI_API_KEY`, `GEMINI_MODELS` | required for Gemini |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODELS` | required for Anthropic |
+| `*_MODELS` format | comma list, each with an optional tier: `gpt-x-mini:small,gpt-x:frontier` (`small` \| `standard` \| `frontier`, default `standard`); a single model is just `gpt-x`. Example 06 plans across all of them; other examples use the first. |
 | `REASONING_EFFORT` | one setting for every provider: `minimal`/`low`/`medium`/`high`. OpenAI `reasoning.effort`, Gemini `thinking_level`, Anthropic `output_config.effort`. Blank = provider default |
 | `EXPLAIN_AGENT_DB` | task/transaction journal, default `.explain-agent/runtime.db` |
 | `EXPLAIN_PAYMENTS_DB`, `EXPLAIN_MEMORY_DB` | the local payment service and agent memory: separate SQLite files on purpose |
 | `EXPLAIN_AGENT_BUDGET_USD` | per-task spend cap, default `2.00` |
-| `*_PRICE_INPUT_PER_M`, `*_PRICE_OUTPUT_PER_M`, `*_PRICE_CACHED_PER_M` | your prices, USD per 1M tokens (see Cost) |
+| `*_PRICE_INPUT_PER_M`, `*_PRICE_OUTPUT_PER_M`, `*_PRICE_CACHED_PER_M` | optional price override, USD per 1M tokens; normally unnecessary, prices come from `data/cost.json` or auto-fetch (see Cost). Needs a single model in `*_MODELS`. |
 
 ## The hero demo: an ambiguous commit
 
@@ -103,139 +108,13 @@ by a deterministic failure injector; the runtime moves to `COMMIT_UNKNOWN` and *
 retry in code (not in the formatter); a fresh runtime rebuilt from SQLite alone reconciles with the
 payment service and finds the original payment; re-issuing the same key creates nothing.
 
-```
-EXPLAIN AGENT TASK · transaction recovery  task-7422
-goal: Complete approved purchase   failure injection: payment-ack-timeout
-the acknowledgement is dropped AFTER the payment service commits
+[![example 4 output](docs/img/04.svg)](docs/EXAMPLES.md#4-transaction-failure-and-recovery)
 
-attempt-01  runtime started
+<sub>Real output from a live run (run log, EXPLAIN AGENT TASK projection, trajectory trace); click for copyable text.</sub>
 
-[1] plan        OpenAI/gpt-5.2-2025-12-11   2.80s   in 65 out 126
-[2] memory      preferred vendor → HIT   (2/2 candidates, top bm25 0.8682)
-[3] policy      purchase policy → PASSED   (vendor=Acme Cloud amount=42.00 limit=100.00)
-[4] transaction txn-2968 START   compensation registered (not executed)
-[5] checkpoint  cp-05 persisted (before the side effect)
-[6] payment     charge $42.00 USD
-                idempotency key pay_task-7422_01
-                side effect: COMMITTED   payment-0007  (seen by the payment service, not by the runtime)
-                acknowledgement: LOST
-
-⚠ COMMIT STATUS UNKNOWN
-
-[7] retry       requested
-
-✖ RETRY BLOCKED
-  pending commit reconciliation
-
-payment records for this task: 1
-
-── process restart: fresh Journal, Runtime and PaymentService built from SQLite only ──
-
-[8] recovery    attempt-02   loaded checkpoint cp-05
-                checking payment status...
-
-✔ EXISTING COMMIT FOUND
-  payment payment-0007
-  status COMMITTED
-
-✔ TRANSACTION RECOVERED
-  COMMIT_UNKNOWN → COMMITTED
-  duplicate charge prevented (records 1 → 1)
-
-┌─ IDEMPOTENCY CHECK · same key, re-issued after recovery ───┐
-│ Key               pay_task-7422_01                         │
-│ First payment     payment-0007                             │
-│ Re-issued request same key                                 │
-│ Returned          payment-0007                             │
-│ Records           1 → 1                                    │
-│ New side effect   NO                                       │
-│ Duplicate         PREVENTED                                │
-└────────────────────────────────────────────────────────────┘
-
-Compensation    not required   (payment was found COMMITTED)
-```
-
-Then the projection of the journal. Every field below is read back from recorded events, and the counters
-agree with the trace: the retry was requested and **blocked** (none executed), and one recovery ran.
-You can regenerate it without keys: `python -m explain replay samples/04_transaction_recovery.json`.
-
-```
-┌─ EXPLAIN AGENT TASK · task-7422 ─────────────────────────────────────────────────────────────────────────────────────┐
-│ Goal            Complete approved purchase                                                                           │
-│ Status          ✔ recovered                                                                                          │
-├─ TRANSACTION ────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Transaction     txn-2968                                                                                             │
-│ Payment         COMMIT_UNKNOWN → COMMITTED                                                                           │
-│ Retry           BLOCKED pending commit check                                                                         │
-│ Idempotency     pay_task-7422_01                                                                                     │
-│ Checkpoint      cp-05                                                                                                │
-│ Compensation    not required                                                                                         │
-│ Duplicate       PREVENTED                                                                                            │
-│ Policy          PASSED                                                                                               │
-│ Attempts        2  (attempt-01, attempt-02)                                                                          │
-├─ STEPS ──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│   #  STEP       WHAT                                       IN  REASONING    OUT    TTFT  LATENCY  TIMELINE           │
-│   1  plan       OpenAI/gpt-5.2-2025-12-11                  65         20    126   1.10s    2.80s  ██████████████     │
-│   2  memory     memory: 'preferred vendor' → HIT  (2/2, top bm25 0.868)                                              │
-│   3  policy     policy: purchase policy → PASSED                                                                     │
-│   4  payment    tool: payment.charge  [no_acknowledgement]                                     0.01s  █░░░░░░░░░░░░░ │
-├─ MODELS ─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ OpenAI/gpt-5.2-2025-12-11   1 call                                                                                   │
-├─ TOKENS  (as reported by each provider; not directly comparable) ────────────────────────────────────────────────────┤
-│ OpenAI    in       65   reasoning          20   out      126                                                         │
-├─ ESTIMATED COST  (calculated from a local price table, not a provider invoice) ──────────────────────────────────────┤
-│ OpenAI    $0.001878                                                                                                  │
-│ Total     $0.001878   of $2.00 budget                                                                                │
-│           █░░░░░░░░░░░░░ 0.1% used                                                                                   │
-├─ RUNTIME ────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Elapsed           3.37s                                                                                              │
-│ Inference calls   1                                                                                                  │
-│ Tool calls        1                                                                                                  │
-│ Memory lookups    1                                                                                                  │
-│ Journal events    24                                                                                                 │
-│ State writes      0                                                                                                  │
-│ Checkpoints       1                                                                                                  │
-│ Retries           0 executed · 1 blocked                                                                             │
-│ Recoveries        1 (reconciliations: 1)                                                                             │
-│ Steps restored    0 from the step ledger (no re-execution)                                                           │
-│ Inference errors  0                                                                                                  │
-│                                                                                                                      │
-│ Physical internalsUNAVAILABLE  (hosted provider)                                                                     │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ 
-```
-
-```
-┌─ TRACE · task-7422 ────────────────────────────────────────┐
-│ PLAN                                                       │
-│   ↓                                                        │
-│ MEMORY                                                     │
-│   ↓                                                        │
-│ POLICY                                                     │
-│   ↓                                                        │
-│ CHECKPOINT cp-05                                           │
-│   ↓                                                        │
-│ PAYMENT                                                    │
-│   ├─ durable intent recorded                               │
-│   ├─ side effect COMMITTED                                 │
-│   └─ acknowledgement LOST                                  │
-│   ↓                                                        │
-│ COMMIT UNKNOWN                                             │
-│   ↓                                                        │
-│ RETRY REQUESTED                                            │
-│   ↓                                                        │
-│ RETRY BLOCKED                                              │
-│   ↓                                                        │
-│ RECOVERY from cp-05  [attempt-02]                          │
-│   ↓                                                        │
-│ STATUS RECONCILE                                           │
-│   ↓                                                        │
-│ COMMITTED                                                  │
-│   ↓                                                        │
-│ IDEMPOTENCY CHECK                                          │
-│   ├─ same key re-issued → payment-0007                     │
-│   └─ duplicate PREVENTED                                   │
-└────────────────────────────────────────────────────────────┘
-```
+The projection is read back from recorded events, and its counters agree with the trace: the retry was requested and
+**blocked** (none executed), and one recovery ran. You can also regenerate it without keys:
+`python -m explain replay samples/04_transaction_recovery.json`.
 
 Other scenarios: `--phase fail` ends the process after the failure and `--recover <task-id>` finishes it
 from a **new process**; `--compensate` adds a later policy rejection that triggers a recorded,
@@ -281,30 +160,9 @@ Execution persistence is reported as *journal events* and *state writes*; "memor
 EXPLAIN_PROVIDER=gemini python examples/01_inference.py     # or openai, anthropic
 ```
 
-```
-┌─ EXPLAIN INFERENCE ────────────────────────────────────────────────┐
-│ Provider            Gemini                                         │
-│ Model               gemini-3.8-flash                               │
-│ Request             wXvAaqP-Jvy639IP19iJ0Q8  OBSERVED              │
-│ Router Decision     configured provider/model                      │
-│ Finish              STOP                                           │
-│                                                                    │
-│ Physical internals  UNAVAILABLE  (hosted provider)                 │
-└────────────────────────────────────────────────────────────────────┘ 
+[![example 1 output](docs/img/01-openai.svg)](docs/EXAMPLES.md#1-explain-inference)
 
-┌─ EXPLAIN ANALYZE ──────────────────────────────────────────────────┐
-│ Input Tokens      74  OBSERVED                                     │
-│ Output Tokens     197  OBSERVED                                    │
-│ Cached Tokens     UNAVAILABLE                                      │
-│ Reasoning Tokens  642  OBSERVED                                    │
-│ Tool Tokens       UNAVAILABLE                                      │
-│ Total Tokens      913  OBSERVED                                    │
-│ TTFT              2.61s  OBSERVED                                  │
-│ Total Latency     3.06s  OBSERVED                                  │
-│ Retries           0                                                │
-│ Estimated Cost    $0.003202  DERIVED                               │
-└────────────────────────────────────────────────────────────────────┘
-```
+<sub>Real output from a live run; click for copyable text.</sub>
 
 Every value is tagged by how it is known: `OBSERVED` (reported by the provider or measured by the client),
 `DERIVED` (calculated from observed values) or `ESTIMATED`. Hosted APIs do not expose GPU placement, KV
@@ -316,24 +174,9 @@ are never invented, and they expand into individual rows for any adapter that re
 Real persistent memory in SQLite FTS5. Retrieval is lexical (bm25), so there are no embedding similarity
 scores to show, and none are shown. No model is called.
 
-```
-┌─ EXPLAIN MEMORY ──────────────────────────────────────────────────────────────────────────────────────┐
-│ Query             preferred vendor                                                                    │
-│ Retrieval         FTS5 bm25 (porter stemming; no embeddings)                                          │
-│ Candidates        3                                                                                   │
-│ Returned          3                                                                                   │
-│ Top Score         2.1442  (bm25, higher is better)                                                    │
-│ Source            system, user                                                                        │
-│ PII Filter        PASSED                                                                              │
-│ Tokens Injected   ~57  ESTIMATED (chars/4)                                                            │
-│                                                                                                       │
-│   #1  2.1442      Preferred vendor for cloud licences is Acme Cloud; renewals go through procurement. │
-│                                                                                                       │
-│   #2  0.5394      Approved vendors: Acme Cloud, Northwind Software, Globex Compute.                   │
-│                                                                                                       │
-│   #8  0.4555      Payment terms with approved vendors are net 30 unless the contract says otherwise.  │
-└───────────────────────────────────────────────────────────────────────────────────────────────────────┘ 
-```
+[![example 2 output](docs/img/02.svg)](docs/EXAMPLES.md#2-explain-memory)
+
+<sub>Real output from a live run; click for copyable text.</sub>
 
 ### 3. EXPLAIN AGENT TASK, a normal live task: `examples/03_agent_task.py`
 
@@ -341,20 +184,9 @@ Plan, fetch live Hacker News, research, summarize, on any provider (or mixed wit
 `--multi-provider` / `--roles planner=gemini,research=openai,summarizer=anthropic`). It then **automatically
 re-runs the same task id** to show recovery; completed steps are restored from the journal, not re-executed.
 
-```
-RUN 1  live  plan → fetch live Hacker News → research → summarize
-[1] plan      Gemini/gemini-3.8-flash  2.92s  ttft 2.78s
-[2] fetch     tool: hn_top  2.01s
-[3] research  Gemini/gemini-3.8-flash  6.10s  ttft 5.02s
-[4] summarize Gemini/gemini-3.8-flash  4.72s  ttft 4.22s
+[![example 3 output](docs/img/03.svg)](docs/EXAMPLES.md#3-explain-agent-task-a-normal-live-task)
 
-┌─ RECOVERY CHECK · resume with same task id ────────────────┐
-│ New model calls       0  ✔ yes                             │
-│ New tool calls        0  ✔ yes                             │
-│ Spend unchanged       $0.010402 → $0.010402  ✔ yes         │
-│ Result identical      ✔ yes                                │
-└────────────────────────────────────────────────────────────┘
-```
+<sub>Real output from a live run; click for copyable text.</sub>
 
 ### 4. Transaction failure and recovery: `examples/04_transaction_recovery.py`
 
@@ -365,28 +197,9 @@ The hero demo above.
 The same request against every configured provider. An advanced example showing the EXPLAIN layer is
 provider-neutral, not a benchmark.
 
-```
-┌─ EXPLAIN COMPARE · same request, each provider ──────────────────────────────────────────────────┐
-│                   OPENAI                    GEMINI                    ANTHROPIC                  │
-├─ OBSERVED ───────────────────────────────────────────────────────────────────────────────────────┤
-│ Model             gpt-5.2-2025-12-11        gemini-3.8-flash          claude-sonnet-5            │
-│ Input Tokens      80                        74                        104                        │
-│ Output Tokens     158                       162                       201                        │
-│ Reasoning Tokens  45                        638                       UNAVAILABLE                │
-│ Cached Tokens     0                         UNAVAILABLE               0                          │
-│ Total Tokens      238                       874                       305                        │
-│ TTFT              2.42s                     2.56s                     1.26s                      │
-│ Latency           4.47s                     2.91s                     2.14s                      │
-│ Estimated Cost    $0.002352                 $0.003056                 $0.002218                  │
-├─ READ THIS FIRST ────────────────────────────────────────────────────────────────────────────────┤
-│ Observability comparison, not a benchmark: no ranking, no winner.                                │
-│ Providers tokenize and execute differently, so token counts are not                              │
-│ equivalent work. Output: Gemini excludes thinking tokens, OpenAI includes                        │
-│ them, Anthropic includes them and reports no separate reasoning count.                           │
-│ Input includes cached tokens for all three. Cost is estimated from a local                       │
-│ price table, not a provider invoice.                                                             │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘ 
-```
+[![example 5 output](docs/img/05.svg)](docs/EXAMPLES.md#5-multi-provider-observability)
+
+<sub>Real output from a live run; click for copyable text.</sub>
 
 **Observability comparison, not a benchmark. No ranking, no winner.** Providers tokenize and execute
 differently, so token counts are not equivalent units of work. Output: Gemini excludes thinking tokens,
@@ -394,6 +207,10 @@ OpenAI includes them, Anthropic includes them and reports no separate reasoning 
 `UNAVAILABLE`). Input includes cached tokens for all three.
 
 ### 6. The plan, then the actuals: `examples/06_explain_plan.py`
+
+The plan is two-pass. **Pass 1** builds the feasible set from the task (memory if it covers the question, else models
+whose tier fits: a drafting task fits any tier, analysis needs `standard`+, code or multi-step needs `frontier`). **Pass 2**
+costs only that set.
 
 Hosted APIs hide physical placement, but the decisions the *runtime* makes are real: answer from memory instead
 of inferring, which configured model to call, and what that should cost. The plan is a real decision over
@@ -404,61 +221,9 @@ observed inputs (memory coverage, each provider's own pre-flight token count, yo
 python examples/06_explain_plan.py
 ```
 
-```
-── Question 1 ──
-┌─ EXPLAIN INFERENCE · plan ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Question        What is the preferred vendor for cloud licences?                                                                                             │
-│ Router Decision answer from memory (no inference)                                                                                                            │
-│ Rule            memory if its top item covers ≥75% of the question's words, else the cheapest worst-case model                                               │
-├─ CANDIDATES  (chosen first; est. cost = worst case, at the output cap) ──────────────────────────────────────────────────────────────────────────────────────┤
-│     PLAN                                     EST IN  EST OUT ≤   EST COST ≤  WHY                                                                             │
-│ ▶  answer from memory (no inference)             0          0    $0.000000  memory item #1 covers 100% of the question (>= 75%)                              │
-│ ✗  openai/gpt-5.2                               37      2,000    $0.028065  not needed: answered from memory                                                 │
-│ ✗  gemini/gemini-flash-latest                   29      2,000    $0.007522  not needed: answered from memory                                                 │
-│ ✗  anthropic/claude-sonnet-5                    53      2,000    $0.020106  not needed: answered from memory                                                 │
-├─ PROVENANCE ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ EST IN is OBSERVED (provider pre-flight count). EST OUT is the ESTIMATED upper bound (the output cap). EST COST is ESTIMATED, derived from your price table. │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ 
+[![example 6 output](docs/img/06.svg)](docs/EXAMPLES.md#6-the-plan-then-the-actuals)
 
-┌─ EXPLAIN ANALYZE · plan vs actual ─────────────────────────────────────────────────┐
-│ Executed              memory lookup (no model call)                                │
-│ Inference calls       0                                                            │
-│ Tokens                0 in / 0 out                                                 │
-│ Estimated Cost        $0.000000  (nothing to bill)                                 │
-│ Lookup latency        2.06 ms  OBSERVED                                            │
-└────────────────────────────────────────────────────────────────────────────────────┘ 
-
-answer: Preferred vendor for cloud licences is Acme Cloud; renewals go through procurement.
-
-── Question 2 ──
-┌─ EXPLAIN INFERENCE · plan ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Question        Draft a polite two-sentence email asking Acme Cloud for a ten percent volume discount on three seats.                                        │
-│ Router Decision gemini/gemini-flash-latest                                                                                                                   │
-│ Rule            memory if its top item covers ≥75% of the question's words, else the cheapest worst-case model                                               │
-├─ CANDIDATES  (chosen first; est. cost = worst case, at the output cap) ──────────────────────────────────────────────────────────────────────────────────────┤
-│     PLAN                                     EST IN  EST OUT ≤   EST COST ≤  WHY                                                                             │
-│ ▶  gemini/gemini-flash-latest                   40      2,000    $0.007530  lowest worst-case estimated cost among priced candidates                         │
-│ ✗  answer from memory (no inference)             0          0    $0.000000  top item covers only 0% (< 75%)                                                  │
-│ ✗  openai/gpt-5.2                               49      2,000    $0.028086  rejected: worst-case $0.0281 vs $0.0075 chosen                                   │
-│ ✗  anthropic/claude-sonnet-5                    73      2,000    $0.020146  rejected: worst-case $0.0201 vs $0.0075 chosen                                   │
-├─ PROVENANCE ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ EST IN is OBSERVED (provider pre-flight count). EST OUT is the ESTIMATED upper bound (the output cap). EST COST is ESTIMATED, derived from your price table. │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘ 
-
-┌─ EXPLAIN ANALYZE · plan vs actual ─────────────────────────────────────────────────┐
-│ Executed              gemini/gemini-3.8-flash                                      │
-│ Input tokens          est 40 → actual 40   Δ +0                                    │
-│ Output tokens         ≤ 2,000 → actual 43  (reasoning 417, reported separately)    │
-│ Estimated Cost        ≤ $0.007530 → actual $0.001755  (23.3% of the bound)         │
-│ TTFT                  1.96s                                                        │
-│ Total latency         2.06s                                                        │
-└────────────────────────────────────────────────────────────────────────────────────┘ 
-
-answer: We are excited to move forward with purchasing three seats for our team and are eager to finalize
-        our agreement with Acme Cloud. Given our commitment, would you be open to extending a ten
-        percent volume discount on these licenses?
-
-```
+<sub>Real output from a live run; click for copyable text.</sub>
 
 The first question is answered from memory, so no model is called. The second picks the candidate with the
 lowest *worst-case* estimated cost and shows each rejected alternative with the numbers that rejected it. The
@@ -474,32 +239,9 @@ varies) versus a per-request header first. Each run's prefix is unique, so call 
 python examples/07_prompt_layout_cache.py
 ```
 
-```
-┌─ EXPLAIN CACHE REUSE · what each provider reported for the SAME shared prompt ──────────────────────────────────────────────┐
-│   PROVIDER   LAYOUT          CALL    INPUT       CACHED   CACHE WRITE     CACHED %        TTFT        COST                  │
-│   OpenAI     stable-first    1       4,919            0   UNAVAILABLE           0%       3.53s   $0.011520                  │
-│   OpenAI     stable-first    2       4,919        4,736   UNAVAILABLE          96%       3.20s   $0.004229                  │
-│   OpenAI     volatile-first  1       4,932            0   UNAVAILABLE           0%       3.67s   $0.012061                  │
-│   OpenAI     volatile-first  2       4,932            0   UNAVAILABLE           0%       1.97s   $0.010913                  │
-├─ Gemini ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│   Gemini     stable-first    1       5,670  UNAVAILABLE   UNAVAILABLE  UNAVAILABLE       8.22s   $0.011647                  │
-│   Gemini     stable-first    2       5,668  UNAVAILABLE   UNAVAILABLE  UNAVAILABLE       3.87s   $0.008320                  │
-│   Gemini     volatile-first  1       5,691  UNAVAILABLE   UNAVAILABLE  UNAVAILABLE       7.70s   $0.011577                  │
-│   Gemini     volatile-first  2       5,689  UNAVAILABLE   UNAVAILABLE  UNAVAILABLE       3.06s   $0.007462                  │
-├─ Anthropic ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│   Anthropic  stable-first    1       7,431            0         7,410           0%       3.73s   $0.018162                  │
-│   Anthropic  stable-first    2       7,429        7,410             0         100%       1.62s   $0.003390                  │
-│   Anthropic  volatile-first  1       7,445            0         7,424           0%       2.16s   $0.016840                  │
-│   Anthropic  volatile-first  2       7,443            0         7,424           0%       1.59s   $0.017036                  │
-├─ HOW TO READ THIS ──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Call 1 is cold (the prefix is unique to this run), call 2 repeats it. CACHED is the provider-reported count of input tokens │
-│ served from cache; UNAVAILABLE means the provider reported no figure. Gemini omits the field when it                        │
-│ reports no cache use, so UNAVAILABLE there means no hit was reported, not a measured zero.                                  │
-│ Only the placement of the volatile text differs between layouts. Cost is estimated from your price table.                   │
-│ TTFT is time to the first visible text token. Caching is best-effort and provider-specific:                                 │
-│ this is an observation, not a guarantee or a ranking.                                                                       │
-└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
+[![example 7 output](docs/img/07.svg)](docs/EXAMPLES.md#7-prompt-layout-and-cache-reuse)
+
+<sub>Real output from a live run; click for copyable text.</sub>
 
 In this run, with the stable-first layout OpenAI reported 96% of the input as cached on the warm repeat, and
 Anthropic read back everything it had written on call 1. With the volatile header first, neither reported any reuse.
@@ -507,12 +249,34 @@ Gemini reported no cached-token figure in either layout (the field is absent whe
 that is not a measured zero). The same prompt is 4.9k, 5.7k and 7.4k tokens depending on the provider's
 tokenizer. Caching is best-effort and provider-specific; this is one run's observation, not a guarantee.
 
+### 8. Agent task trajectory: `examples/08_agent_task_trajectory.py`
+
+The same task as example 03 (plan, fetch live Hacker News, research, summarize), but the whole trajectory is planned
+**before the first call**. Each model step goes through the two passes of example 06: pass 1 keeps the models whose tier
+fits that step (planning and summarizing fit a `small` model, the research analysis needs `standard`+), pass 2 takes the
+cheapest worst case. A later step's input estimate carries an allowance for upstream output, and the summed worst case
+must fit `EXPLAIN_AGENT_BUDGET_USD` or the task is rejected without running. After the run, EXPLAIN TRAJECTORY shows
+planned vs actual per step and flags deviations (input above the estimate, a different model, cost above the bound).
+
+```bash
+python examples/08_agent_task_trajectory.py
+python -m explain trajectory <task-id>     # re-render from the journal
+```
+
+The trajectory is fixed up front: a deviation is flagged, not repaired (no mid-task re-planning), and tool output size
+and output length are estimates or caps, shown as such. 
+
+[![example 8 output](docs/img/08.svg)](docs/EXAMPLES.md#8-agent-task-trajectory)
+
+<sub>Real output from a live run; click for copyable text.</sub>
+
 ## Inspecting a task
 
 ```bash
 python -m explain list
 python -m explain explain <task-id>     # EXPLAIN AGENT TASK
 python -m explain trace   <task-id>     # trajectory
+python -m explain trajectory <task-id>  # planned vs actual (examples/08)
 python -m explain events  <task-id>     # event journal as a table (add --json for developers)
 python -m explain export  <task-id> --out samples/mine.json   # record a run (secrets already redacted)
 python -m explain replay  samples/mine.json                   # render it again: no keys, no network
@@ -544,7 +308,12 @@ stored. A test writes a fake key through every persistence path and scans the ra
 - Cost is calculated from a local pricing table; treat it as estimated, not provider-billed.
 - Provider token accounting differs; see the comparison note.
 - Cache results (example 07) are single-run observations; providers cache on a best-effort basis and report it differently.
-- The plan (example 06) is a simple, explicit rule over observed inputs, not a cost-based optimizer; its cost figures are upper bounds.
+- The plan (example 06) is two explicit rules over observed inputs, not a cost-based optimizer. Pass 1 (keyword rules
+  against tiers *you* assign in `*_MODELS`) decides which models are feasible; correctness is a constraint there, never
+  traded against cost. Pass 2 ranks the feasible set by worst-case cost, an upper bound rather than a prediction. Pass 1
+  can say "no feasible plan" instead of silently downgrading.
+- KV/cache locality, a reuse-equivalence guarantee, workload statistics and expected output length are shown as `UNAVAILABLE`
+  in the plan: a hosted API exposes none of them, and they are not invented.
 - Distributed state is not implemented: no replication, sync, conflict resolution, placement or distributed forgetting.
 - The payment service is local and demonstrates external side-effect semantics. It does not process real money.
 - `SIDE_EFFECT_COMMITTED` is reported out-of-band by the payment service's observer after its own commit.
@@ -560,13 +329,14 @@ explain/
   journal.py        append-only events + durable tables (SQLite)
   agent.py          provider-independent runtime: durable steps, tools, memory lookups, policy
   transaction.py    durable intent, COMMIT_UNKNOWN, retry block, reconciliation, compensation
-  plan.py           inference plan: chosen path + rejected alternatives (journaled as PLAN_CHOSEN)
+  plan.py           two-pass inference plan (feasible set, then cost): chosen path + rejected alternatives (PLAN_CHOSEN)
+  trajectory.py     whole-task plan before running + plan-vs-actual view (TRAJECTORY_PLANNED)
   payments.py       local external payment service (separate SQLite, UNIQUE idempotency key)
   memory.py         agent memory (FTS5), separate from the journal
   explain_task.py   EXPLAIN AGENT TASK projection      trace.py   trajectory projection
   render.py         EXPLAIN INFERENCE / ANALYZE / MEMORY / COMPARE    cli.py   explain|trace|events
 examples/  01_inference  02_memory  03_agent_task  04_transaction_recovery  05_compare_providers
-           06_explain_plan  07_prompt_layout_cache
+           06_explain_plan  07_prompt_layout_cache  08_agent_task_trajectory
 samples/   recorded real journals for keyless replay
 tests/     behavior tests (no keys needed): idempotency, commit-unknown, reconciliation,
            checkpoint recovery, compensation, journal projection, capabilities, redaction,

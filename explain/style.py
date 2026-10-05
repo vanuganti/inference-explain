@@ -18,6 +18,7 @@ def enabled() -> bool:
 
 
 def paint(text: str, *styles: str) -> str:
+    styles = tuple(x for x in styles if x)  # callers pass "" for "no style"
     if not enabled() or not styles:
         return text
     return f"\x1b[{';'.join(CODES[s] for s in styles)}m{text}\x1b[0m"

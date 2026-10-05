@@ -1,5 +1,21 @@
 {
   "anthropic": {
+    "claude-haiku-4-5-20251001": {
+      "cached_per_m": 0.1,
+      "fetched_at": "2026-10-05T15:03:37Z",
+      "input_per_m": 1.0,
+      "output_per_m": 5.0,
+      "source": "litellm:claude-haiku-4-5-20251001",
+      "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+    },
+    "claude-opus-5-5": {
+      "cached_per_m": 0.2,
+      "fetched_at": "2026-10-05T15:03:37Z",
+      "input_per_m": 4.0,
+      "output_per_m": 20.0,
+      "source": "litellm:claude-opus-5-5",
+      "source_url": "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+    },
     "claude-sonnet-5": {
       "cached_per_m": 0.2,
       "fetched_at": "2026-10-03T03:10:04Z",

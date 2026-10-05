@@ -12,6 +12,7 @@ import re
 import time
 from typing import Any, Optional
 
+from .config import TIERS
 from .memory import AgentMemory
 from .pricing import get_price
 from .providers.base import InferenceProvider
@@ -21,7 +22,28 @@ from .style import Panel, cell, paint
 STOP = set("a an the of for to is are was were what which who how do does did in on at by with and or "
            "me my our we us it its this that be can you your please".split())
 MIN_COVERAGE = 0.75
-RULE = "memory if its top item covers ≥75% of the question's words, else the cheapest worst-case model"
+RULE = "pass 1: memory if ≥75% covered, else tier must fit the task; pass 2: cheapest worst-case"
+
+# Pass 1 is deliberately crude keyword rules, not a classifier. Cost never enters it.
+_FRONTIER = r"\b(prove|derive|debug|refactor|implement|algorithm|architecture|multi-?step|step by step|code)\b"
+_STANDARD = r"\b(analy[sz]e|compare|evaluate|trade-?offs?|recommend|justify|strategy|why|reason(ing)?)\b"
+# What the demo cannot see on a hosted API. Shown as UNAVAILABLE, never invented.
+NOT_EXPOSED = [
+    ("KV / cache locality", "no placement or prefix-affinity control on a hosted API"),
+    ("Reuse guarantee", "cached state equivalent to recompute is provider-asserted; the client cannot verify it"),
+    ("Workload statistics", "no aggregated hit-rate or output-length history is collected, so no cost model is learned"),
+    ("Expected output length", "not predictable; the plan carries only the output cap as an upper bound"),
+]
+
+
+def classify(question: str) -> tuple[str, str]:
+    """(task kind, minimum tier) from the question text alone."""
+    q = question.lower()
+    if re.search(_FRONTIER, q):
+        return "code / multi-step reasoning", "frontier"
+    if re.search(_STANDARD, q):
+        return "analysis / reasoning", "standard"
+    return "lookup / drafting", "small"
 
 
 def _terms(text: str) -> set[str]:
@@ -35,7 +57,9 @@ def coverage(question: str, text: str) -> float:
 
 
 def build_plan(question: str, system: str, memory: AgentMemory, providers: list[InferenceProvider],
-               output_cap: int = 2000) -> dict[str, Any]:
+               output_cap: int = 2000, task: Optional[str] = None, extra_input: int = 0) -> dict[str, Any]:
+    """`task` (default: the question) is the text pass 1 classifies; `extra_input` is an ESTIMATED allowance
+    added to each pre-flight count for input that does not exist yet (a trajectory step's upstream output)."""
     t0 = time.perf_counter()
     lk = memory.search(question, k=1)
     lookup_s = time.perf_counter() - t0  # the real cost of the "don't infer" check
@@ -47,16 +71,22 @@ def build_plan(question: str, system: str, memory: AgentMemory, providers: list[
         "evidence": {"lookup_s": lookup_s, "coverage": round(cov, 2), "top_score": lk.top_score, "item_id": best["id"] if best else None,
                      "answer": best["text"] if best else None},
     }]
+    task, need = classify(task or question)
     for p in providers:
+        tier = getattr(p, "tier", "standard")
         req = InferenceRequest(prompt=question, system=system, max_output_tokens=output_cap)
         n_in = p.count_tokens(req)  # OBSERVED: the provider's own pre-flight count
+        if n_in is not None:
+            n_in += extra_input
         price, origin = get_price(p.name, p.model)
         cost = None
         if n_in is not None and price:
             cost = (n_in * price["input_per_m"] + output_cap * price["output_per_m"]) / 1e6
+        capable = TIERS.index(tier) >= TIERS.index(need)
         cands.append({"kind": "model", "label": f"{p.name}/{p.model}", "provider": p.name, "model": p.model,
+                      "tier": tier, "capable": capable,
                       "est_input": n_in, "est_output_max": output_cap, "est_cost_max": cost,
-                      "feasible": cost is not None, "chosen": False,
+                      "feasible": capable and cost is not None, "chosen": False,
                       "evidence": {"price_origin": origin if price else None}})
 
     mem = cands[0]
@@ -70,6 +100,8 @@ def build_plan(question: str, system: str, memory: AgentMemory, providers: list[
     for c in cands:
         c["reason"] = _reason(c, chosen, cov, best)
     return {"question": question, "rule": RULE, "output_cap": output_cap, "candidates": cands,
+            "pass1": {"task": task, "needs": need,
+                      "feasible": [c["label"] for c in cands if c["kind"] == "model" and c["capable"]]},
             "chosen": next((i for i, c in enumerate(cands) if c["chosen"]), None)}
 
 
@@ -77,11 +109,13 @@ def _reason(c: dict, chosen: Optional[dict], cov: float, best: Optional[dict]) -
     if c["chosen"]:
         if c["kind"] == "memory":
             return f"memory item #{c['evidence']['item_id']} covers {cov:.0%} of the question (>= {MIN_COVERAGE:.0%})"
-        return "lowest worst-case estimated cost among priced candidates"
+        return f"pass 2: lowest worst-case cost among {c['tier']}+ models that fit the task"
     if c["kind"] == "memory":
         return "no memory hit" if not best else f"top item covers only {cov:.0%} (< {MIN_COVERAGE:.0%})"
     if chosen and chosen["kind"] == "memory":
         return "not needed: answered from memory"
+    if not c["capable"]:
+        return f"pass 1: tier {c['tier']} is below what the task needs"
     if c["est_input"] is None:
         return "rejected: provider could not pre-count tokens"
     if c["est_cost_max"] is None:
@@ -98,9 +132,13 @@ def render_plan(ev: dict) -> str:
     P = Panel("EXPLAIN INFERENCE", "plan")
     P.kv("Question", ev["plan"]["question"], 16)
     P.kv("Router Decision", paint(cands[ch]["label"] if ch is not None else "none feasible", "bold", "green"), 16)
+    p1 = ev["plan"].get("pass1")
+    if p1:
+        P.kv("Pass 1", f"task: {p1['task']}  ·  needs tier ≥ {p1['needs']}  ·  "
+             f"{len(p1['feasible'])} of {sum(c['kind'] == 'model' for c in cands)} models fit", 16)
     P.kv("Rule", ev["plan"]["rule"], 16)
-    P.sep("CANDIDATES  (chosen first; est. cost = worst case, at the output cap)")
-    P.row(paint("    " + cell("PLAN", 38) + cell("EST IN", 9, True) + cell("EST OUT ≤", 11, True)
+    P.sep("CANDIDATES  (chosen first; pass 2 ranks by worst-case cost at the output cap)")
+    P.row(paint("    " + cell("PLAN", 38) + cell("TIER", 10) + cell("EST IN", 9, True) + cell("EST OUT ≤", 11, True)
                 + cell("EST COST ≤", 13, True) + "  WHY", "dim"))
     order = sorted(range(len(cands)), key=lambda i: (i != ch, i))
     for i in order:
@@ -108,11 +146,15 @@ def render_plan(ev: dict) -> str:
         mark = paint("▶ ", "bold", "green") if c["chosen"] else paint("✗ ", "dim")
         cost = UNAVAILABLE if c["est_cost_max"] is None else f"${c['est_cost_max']:.6f}"
         P.row(mark + " " + cell(c["label"], 38, False, "bold" if c["chosen"] else "") +
-              cell("UNAVAILABLE" if c["est_input"] is None else f"{c['est_input']:,}", 9, True) +
+              cell(c.get("tier", "-"), 10) + cell("UNAVAILABLE" if c["est_input"] is None else f"{c['est_input']:,}", 9, True) +
               cell(f"{c['est_output_max']:,}", 11, True) + cell(cost, 13, True) + "  " + c["reason"])
     P.sep("PROVENANCE")
     P.row(paint(f"EST IN is {OBSERVED} (provider pre-flight count). EST OUT is the {ESTIMATED} upper bound "
-                f"(the output cap). EST COST is {ESTIMATED}, derived from your price table.", "dim"))
+                f"(the output cap). EST COST is {ESTIMATED}, derived from your price table. TIER is configured by you "
+                f"(<PROVIDER>_MODELS), not measured.", "dim"))
+    P.sep("NOT EXPOSED BY THIS DEMO")
+    for k, why in NOT_EXPOSED:
+        P.kv(k, f"{UNAVAILABLE}  ({why})", 24)
     return P.render(min_width=100)
 
 
@@ -143,6 +185,9 @@ def render_analyze(plan_ev: dict, end_ev: Optional[dict]) -> str:
     else:
         P.kv("Estimated Cost", f"≤ ${c['est_cost_max']:.6f} → actual ${cost:.6f}"
              f"  ({cost / c['est_cost_max']:.1%} of the bound)", 22)
+    cached = u.get("cached_tokens")
+    P.kv("Cached input", UNAVAILABLE if cached is None else f"{cached:,} tokens  {paint('OBSERVED', 'dim')}", 22)
+    P.kv("Reuse guarantee", f"{UNAVAILABLE}  (provider-asserted; not verifiable by the client)", 22)
     P.kv("TTFT", f"{end_ev['ttft_s']:.2f}s" if end_ev.get("ttft_s") is not None else UNAVAILABLE, 22)
     P.kv("Total latency", f"{end_ev['latency_s']:.2f}s", 22)
     return P.render(min_width=84)
